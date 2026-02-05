@@ -186,11 +186,22 @@ bool EcatMaster::reqOpState()
 
 void EcatMaster::ecatCheck()
 {
-    constexpr int cycleTimeUs = 10000; // 10ms;
+    constexpr int cycleTimeUs   = 10000; // 10ms;
+    constexpr int errorCountMax = 5;
+
+    int continuousErrorCount = 0;
 
     while (m_Running) {
         if (m_CurrentWKC.load() < m_ExpectedWKC
             || ec_group[m_CurrentGroup].docheckstate) {
+            ++continuousErrorCount;
+
+            if (continuousErrorCount > errorCountMax) {
+                std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!";
+                m_Running = false;
+                break;
+            }
+
             // clear check state flag
             ec_group[m_CurrentGroup].docheckstate = FALSE;
             // read state of all slaves

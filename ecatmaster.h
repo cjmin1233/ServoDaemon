@@ -34,6 +34,7 @@ public:
     void setHome();
 
     const ServoStatus& getServoStatus(int slaveId) const;
+    const bool         isRunning() const { return m_Running; }
 
 private:
     void processLoop();

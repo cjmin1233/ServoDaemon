@@ -1,6 +1,7 @@
 #include "ecatmanager.h"
 
 #include <QDebug>
+#include <QThread>
 
 EcatManager::EcatManager(QObject* parent)
     : QObject { parent }
@@ -29,6 +30,29 @@ bool EcatManager::connectMaster(const QString& ifname)
 
     qDebug() << "[EcatManager::connectMaster] EtherCAT connected, slaves:" << ec_slavecount;
     return true;
+}
+
+void EcatManager::reconnectMaster(const QString& ifname)
+{
+    qInfo() << "[EcatManager::reconnectMaster] Attempting to reconnect master...";
+
+    m_Master.stop();
+
+    QThread::msleep(500);
+
+    if (connectMaster(ifname)) {
+        qInfo() << "[EcatManager::reconnectMaster] Reconnection successful!";
+    } else {
+        qWarning() << "[EcatManager::reconnectMaster] Reconnection failed, will retry...";
+        return;
+    }
+
+    // start
+    if (!m_Master.start()) {
+        qWarning() << "[EcatManager::connectMaster] EtherCAT start failed";
+    }
+
+    qDebug() << "[EcatManager::connectMaster] EtherCAT connected, slaves:" << ec_slavecount;
 }
 
 void EcatManager::disconnectMaster()

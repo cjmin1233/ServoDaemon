@@ -18,7 +18,6 @@ EcatServer::EcatServer(QObject* parent)
 
     if (!m_ecatManager->connectMaster(ifname)) {
         // connect failed
-        return;
     }
 
     if (m_server->listen(QHostAddress(Config::HOST), Config::PORT)) {
@@ -95,6 +94,13 @@ void EcatServer::onClientDisconnected()
 
 void EcatServer::onTimerTick()
 {
+    const QString& ifname = "\\Device\\NPF_{F80FCB79-A945-4A5A-BD77-B5076391E949}";
+
+    if (!m_ecatManager->isMasterRunning()) {
+        m_ecatManager->reconnectMaster(ifname);
+        return;
+    }
+
     if (m_currentClient && m_currentClient->state() == QAbstractSocket::ConnectedState) {
         int servoId = 1; // temporary
 
