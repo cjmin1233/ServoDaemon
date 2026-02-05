@@ -80,3 +80,9 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+
+# Visual Studio
+.vs/
+out/build/
+CMakePresets.json
+CMakeUserPresets.json
