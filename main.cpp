@@ -5,15 +5,20 @@
 #include "../CommonConfig.h"
 #include "ecatserver.h"
 
-// [1] 날짜별 로그 파일 저장 함수
+/// <summary>
+/// Qt custom message handler for logging
+/// </summary>
+/// <param name="type"> Type of message </param>
+/// <param name="context"> Message context </param>
+/// <param name="msg"> Message content </param>
 void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    // 실행 파일 경로 하위의 logs 폴더
+	// create logs directory if not exists
     QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";
     QDir    logDir(logDirPath);
     if (!logDir.exists()) logDir.mkpath(".");
 
-    // 날짜별 파일명 (예: 2024-05-20_log.txt)
+	// define log file path based on current date
     QString dateString  = QDateTime::currentDateTime().toString("yyyy-MM-dd");
     QString logFilePath = logDirPath + QString("/%1_log.txt").arg(dateString);
 
@@ -22,7 +27,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
         QTextStream ts(&outFile);
         QString     timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
 
-        // 로그 타입 표시
+		// determine message type string
         QString typeStr = "INFO ";
         if (type == QtCriticalMsg || type == QtFatalMsg) typeStr = "ERROR";
 
@@ -33,7 +38,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
 
 int main(int argc, char* argv[])
 {
-    // 핸들러 등록 (이제 모든 qDebug는 파일로 감)
+	// install custom message handler for logging
     qInstallMessageHandler(myMessageOutput);
 
     QCoreApplication a(argc, argv);

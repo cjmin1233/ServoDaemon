@@ -7,15 +7,17 @@
 /** timeout value in us for return "Operational" state */
 #define EC_TIMEOUTOP 50000
 
+/** timeout value in us for safe operational state */
 #define EC_TIMEOUTCONFIG (EC_TIMEOUTSTATE * 4)
 
+// initialize EtherCAT master, return true if initialized successfully
 bool EcatMaster::init(const std::string& ifname)
 {
     if (!ec_init(ifname.c_str())) {
         std::cout << "[EcatMaster::init] ec_init failed on " << ifname << std::endl;
         return false;
     }
-
+	// After ec_init succeeded, state should be INIT
     std::cout << "[EcatMaster::init] ec_init on " << ifname << " succeeded" << std::endl;
 
     if (ec_config_init(FALSE) <= 0) {
@@ -23,17 +25,18 @@ bool EcatMaster::init(const std::string& ifname)
         ec_close();
         return false;
     }
-
+	// After ec_config_init succeeded, slaves are in PRE-OP state
     ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
 
     std::cout << "[EcatMaster::init] " << ec_slavecount << " slaves found" << std::endl;
 
+	// create slave instances
     m_Slaves.clear();
     m_Slaves.resize(ec_slavecount + 1);
     for (int i = 1; i <= ec_slavecount; ++i) {
         auto& slave = ec_slave[i];
 
-        // servo L7NH
+		// detect and create slave instances
         if (ServoL7NH::checkL7NH(i)) {
             m_ServoId = i;
 
@@ -50,22 +53,27 @@ bool EcatMaster::init(const std::string& ifname)
     ec_config_map(&m_IOmap);
     ec_configdc();
 
+	// After ec_config_map succeeded, slaves are in SAFE-OP state
     std::cout << "[EcatMaster::init] Slaves mapped, state to SAFE_OP" << std::endl;
 
     ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTCONFIG);
 
+	// calculate expected WKC
     m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
     std::cout << "[EcatMaster::init] Expected WKC : " << m_ExpectedWKC << std::endl;
 
     return reqOpState();
 }
 
+// start EtherCAT master, return true if started successfully
 bool EcatMaster::start()
 {
+	// already running
     if (m_Running) {
         return false;
     }
 
+	// start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
 
@@ -74,39 +82,54 @@ bool EcatMaster::start()
 
     m_Running = true;
 
+	// start process loop thread, error handler thread
     m_Worker       = std::thread(&EcatMaster::processLoop, this);
     m_ErrorHandler = std::thread(&EcatMaster::ecatCheck, this);
 
     return true;
 }
 
+// stop EtherCAT master
 void EcatMaster::stop()
 {
+	// already stopped
     if (!m_Running) {
         return;
     }
 
     m_Running = false;
 
+	// wait for threads to finish
     if (m_Worker.joinable()) m_Worker.join();
     if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
 
+	// stop all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
 
         m_Slaves[i]->stop();
     }
 
+	// send one last process data to set slaves to INIT state
     ec_send_processdata();
     ec_receive_processdata(EC_TIMEOUTRET);
 
+	// set slaves to INIT state
     ec_slave[0].state = EC_STATE_INIT;
     ec_writestate(0);
+
+	// close EtherCAT master
     ec_close();
 }
 
+// set target position to servo in ratio [0.0, 1.0]
 void EcatMaster::servoMovePosition(float ratio)
 {
+	// clamp ratio to [0.0, 1.0]
+	if (ratio < 0.0f) ratio = 0.0f;
+	if (ratio > 1.0f) ratio = 1.0f;
+
+	// get pointer to servo
     auto* servo = getPtrServo();
 
     if (servo == nullptr) {
@@ -116,8 +139,10 @@ void EcatMaster::servoMovePosition(float ratio)
     servo->setTargetPosition(ratio);
 }
 
+// set homing command to servo
 void EcatMaster::setHome()
 {
+	// get pointer to servo
     auto* servo = getPtrServo();
 
     if (servo == nullptr) {
@@ -127,9 +152,10 @@ void EcatMaster::setHome()
     servo->setHome();
 }
 
+// if valid servo, return its status; else return empty status
 const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
 {
-    static constexpr ServoStatus empty {};
+	static constexpr ServoStatus empty{};  // return empty status if invalid
 
     if (ServoL7NH* servo = dynamic_cast<ServoL7NH*>(m_Slaves[slaveId].get())) {
         return servo->getStatus();
@@ -138,11 +164,13 @@ const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
     return empty;
 }
 
+// main process loop
 void EcatMaster::processLoop()
 {
     constexpr int cycleTimeUs = 1'000; // 1ms
 
     while (m_Running) {
+		// process each slave
         for (int i = 1; i <= ec_slavecount; ++i) {
             if (m_Slaves[i] == nullptr) continue;
 
@@ -156,6 +184,7 @@ void EcatMaster::processLoop()
     }
 }
 
+// request Operational state for all slaves
 bool EcatMaster::reqOpState()
 {
     ec_slave[0].state = EC_STATE_OPERATIONAL;
@@ -184,6 +213,7 @@ bool EcatMaster::reqOpState()
     return true;
 }
 
+// error handler thread function
 void EcatMaster::ecatCheck()
 {
     constexpr int cycleTimeUs   = 10000; // 10ms;
@@ -192,10 +222,13 @@ void EcatMaster::ecatCheck()
     int continuousErrorCount = 0;
 
     while (m_Running) {
+		// if WKC is less than expected, or check state flag is set, check all slaves
         if (m_CurrentWKC.load() < m_ExpectedWKC
             || ec_group[m_CurrentGroup].docheckstate) {
+			// increment continuous error count
             ++continuousErrorCount;
 
+			// if error count exceeds max, stop the master
             if (continuousErrorCount > errorCountMax) {
                 std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!";
                 m_Running = false;
@@ -206,10 +239,10 @@ void EcatMaster::ecatCheck()
             ec_group[m_CurrentGroup].docheckstate = FALSE;
             // read state of all slaves
             ec_readstate();
-
+			// check each slave state
             slavesCheck();
 
-            // all slaves resumed OP state
+			// if check state flag is cleared, all slaves are resumed to OP state
             if (!ec_group[m_CurrentGroup].docheckstate) {
                 std::cout << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL" << std::endl;
             }
@@ -219,6 +252,7 @@ void EcatMaster::ecatCheck()
     }
 }
 
+// check each slave state and try to recover if not in OP state
 void EcatMaster::slavesCheck()
 {
     for (int i = 1; i <= ec_slavecount; ++i) {
@@ -313,6 +347,7 @@ void EcatMaster::slavesCheck()
     }
 }
 
+// get pointer to ServoL7NH instance
 ServoL7NH* EcatMaster::getPtrServo()
 {
     if (m_ServoId <= 0) {

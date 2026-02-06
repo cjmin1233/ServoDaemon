@@ -240,6 +240,14 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     uint16_t&       controlWord = rxpdo->control_word;
     const uint16_t& statusWord  = txpdo->status_word;
 
+    // Fault Reset
+    if (statusWord & cia402::SW_STATE_FAULT) {
+        controlWord |= cia402::CW_FAULT_RESET;
+
+        m_stateCheckCounter = stateCheckCycleCounter;
+        return;
+    }
+
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
     if ((statusWord & cia402::SW_STATE_MASK1) == cia402::SW_STATE_SWITCH_ON_DISABLED) {

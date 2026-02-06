@@ -14,12 +14,14 @@ EcatServer::EcatServer(QObject* parent)
     , m_timer(new QTimer(this))
     , m_ecatManager(new EcatManager(this))
 {
+	// TODO: read interface name from config file
     const QString ifname = "\\Device\\NPF_{F80FCB79-A945-4A5A-BD77-B5076391E949}";
 
     if (!m_ecatManager->connectMaster(ifname)) {
         // connect failed
     }
 
+	// start listening for client connections
     if (m_server->listen(QHostAddress(Config::HOST), Config::PORT)) {
         qDebug() << "[EcatServer::] Server Listening on port" << Config::PORT;
 
@@ -36,16 +38,19 @@ EcatServer::EcatServer(QObject* parent)
 
 void EcatServer::onServerConnection()
 {
+	// disconnect previous client if exists
     if (m_currentClient != nullptr) {
         m_currentClient->deleteLater();
     }
 
+	// accept new client connection
     m_currentClient = m_server->nextPendingConnection();
 
     if (m_currentClient == nullptr) return;
 
     qDebug() << "[EcatServer::onServerConnection] Client Connected!";
 
+	// connect signals for client socket
     QObject::connect(m_currentClient, &QTcpSocket::readyRead,
                      this, &EcatServer::onClientReadyread);
     QObject::connect(m_currentClient, &QTcpSocket::disconnected,
@@ -54,35 +59,29 @@ void EcatServer::onServerConnection()
 
 void EcatServer::onClientReadyread()
 {
+	// read data from client
     QDataStream in(m_currentClient);
     in.setVersion(QDataStream::Qt_6_5);
 
+	// start transaction for safe reading
     in.startTransaction();
 
     quint32 blockSize;
     float   ratio;
 
+	// read data fields
     in >> blockSize;
-    in >> ratio; // float 타입으로 읽기
+	in >> ratio;
 
+	// check if transaction is successful
     if (!in.commitTransaction()) {
         return;
     }
 
     qDebug() << "Received Ratio:" << ratio;
 
-    // EtherCAT 마스터 객체에 전달
+	// launch servo move
     m_ecatManager->launchServoMove(ratio);
-    // ecatMaster->servoMovePosition(targetPos);
-
-    // QByteArray data = m_currentClient->readAll();
-
-    // qDebug() << "[EcatServer::onClientReadyread] Received Command:" << data;
-
-    // // command switch case
-    // if (data == "MOTOR_ON") {
-    //     qDebug() << "[EcatServer::onClientReadyread] Motor on...";
-    // }
 }
 
 void EcatServer::onClientDisconnected()
@@ -96,11 +95,20 @@ void EcatServer::onTimerTick()
 {
     const QString& ifname = "\\Device\\NPF_{F80FCB79-A945-4A5A-BD77-B5076391E949}";
 
+	// If server is not listening, try to restart listening
+    if (!m_server->isListening()) {
+        m_server->listen(QHostAddress(Config::HOST), Config::PORT);
+        return;
+	}
+
+	// If EtherCAT master is not running, try to reconnect
     if (!m_ecatManager->isMasterRunning()) {
         m_ecatManager->reconnectMaster(ifname);
         return;
     }
 
+	// If there is a connected client, send servo status
+	// TODO: send status to all connected clients
     if (m_currentClient && m_currentClient->state() == QAbstractSocket::ConnectedState) {
         int servoId = 1; // temporary
 
@@ -110,17 +118,19 @@ void EcatServer::onTimerTick()
 
         out.setVersion(QDataStream::Qt_6_5);
 
-        // 1. 헤더 자리를 비워두고 데이터 쓰기
+		// 1. size placeholder, actual size will be written later
         out << (quint32)0;
         out << status.position << status.velocity;
 
-        // 2. 전체 크기를 계산해서 맨 앞으로 이동 후 덮어쓰기
+		// 2. go back and write the actual size
         out.device()->seek(0);
         out << (quint32)(block.size() - sizeof(quint32));
 
+		// 3. send the data block to client
         m_currentClient->write(block);
-
         // m_currentClient->write("server tick");
+
+		// wait until all data is written
         m_currentClient->waitForBytesWritten();
         m_currentClient->flush();
     }
