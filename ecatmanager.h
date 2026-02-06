@@ -16,17 +16,21 @@ public:
     const ServoStatus& getServoStatus(int slaveId) const { return m_Master.getServoStatus(slaveId); }
     const bool         isMasterRunning() const { return m_Master.isRunning(); }
 
+    bool connectMaster();
     bool connectMaster(const QString& ifname);
-    void reconnectMaster(const QString& ifname);
+    void reconnectMaster();
     void disconnectMaster();
 
     void launchServoMove(float ratio);
     void setHome();
 
-signals:
+private:
+    void searchValidAdapter();
 
 private:
     EcatMaster m_Master;
+
+    QString m_ifname;
 };
 
 #endif // ECATMANAGER_H

@@ -13,12 +13,12 @@
 /// <param name="msg"> Message content </param>
 void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-	// create logs directory if not exists
+    // create logs directory if not exists
     QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";
     QDir    logDir(logDirPath);
     if (!logDir.exists()) logDir.mkpath(".");
 
-	// define log file path based on current date
+    // define log file path based on current date
     QString dateString  = QDateTime::currentDateTime().toString("yyyy-MM-dd");
     QString logFilePath = logDirPath + QString("/%1_log.txt").arg(dateString);
 
@@ -27,7 +27,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
         QTextStream ts(&outFile);
         QString     timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
 
-		// determine message type string
+        // determine message type string
         QString typeStr = "INFO ";
         if (type == QtCriticalMsg || type == QtFatalMsg) typeStr = "ERROR";
 
@@ -38,12 +38,12 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
 
 int main(int argc, char* argv[])
 {
-	// install custom message handler for logging
+    // install custom message handler for logging
     qInstallMessageHandler(myMessageOutput);
 
     QCoreApplication a(argc, argv);
 
-    qDebug() << "--- Servo Daemon Started ---";
+    qDebug() << "---------- Servo Daemon Started ----------";
 
     auto* server = new EcatServer(&a);
 

@@ -28,6 +28,8 @@ private:
     QTimer* m_timer = nullptr;
 
     EcatManager* m_ecatManager = nullptr;
+
+    const int m_tickCycle;
 };
 
 #endif // ECATSERVER_H

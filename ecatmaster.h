@@ -46,6 +46,7 @@ private:
 
 private:
     std::atomic<bool> m_Running { false };
+    std::atomic<bool> m_Initialized { false };
 
     std::thread m_Worker;
     std::thread m_ErrorHandler;

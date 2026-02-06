@@ -17,26 +17,30 @@ bool EcatMaster::init(const std::string& ifname)
         std::cout << "[EcatMaster::init] ec_init failed on " << ifname << std::endl;
         return false;
     }
-	// After ec_init succeeded, state should be INIT
+
+	// set init flag
+    m_Initialized = true;
+    // After ec_init succeeded, state should be INIT
     std::cout << "[EcatMaster::init] ec_init on " << ifname << " succeeded" << std::endl;
 
     if (ec_config_init(FALSE) <= 0) {
         std::cout << "[EcatMaster::init] No Slaves found" << std::endl;
         ec_close();
+        m_Initialized = false; // reset init flag
         return false;
     }
-	// After ec_config_init succeeded, slaves are in PRE-OP state
+    // After ec_config_init succeeded, slaves are in PRE-OP state
     ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
 
     std::cout << "[EcatMaster::init] " << ec_slavecount << " slaves found" << std::endl;
 
-	// create slave instances
+    // create slave instances
     m_Slaves.clear();
     m_Slaves.resize(ec_slavecount + 1);
     for (int i = 1; i <= ec_slavecount; ++i) {
         auto& slave = ec_slave[i];
 
-		// detect and create slave instances
+        // detect and create slave instances
         if (ServoL7NH::checkL7NH(i)) {
             m_ServoId = i;
 
@@ -53,12 +57,12 @@ bool EcatMaster::init(const std::string& ifname)
     ec_config_map(&m_IOmap);
     ec_configdc();
 
-	// After ec_config_map succeeded, slaves are in SAFE-OP state
+    // After ec_config_map succeeded, slaves are in SAFE-OP state
     std::cout << "[EcatMaster::init] Slaves mapped, state to SAFE_OP" << std::endl;
 
     ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTCONFIG);
 
-	// calculate expected WKC
+    // calculate expected WKC
     m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
     std::cout << "[EcatMaster::init] Expected WKC : " << m_ExpectedWKC << std::endl;
 
@@ -68,12 +72,16 @@ bool EcatMaster::init(const std::string& ifname)
 // start EtherCAT master, return true if started successfully
 bool EcatMaster::start()
 {
-	// already running
+    // already running
     if (m_Running) {
         return false;
     }
 
-	// start all slaves
+    // Ensure previous threads are properly joined before starting new ones
+    if (m_Worker.joinable()) m_Worker.join();
+    if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
+
+    // start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
 
@@ -82,7 +90,7 @@ bool EcatMaster::start()
 
     m_Running = true;
 
-	// start process loop thread, error handler thread
+    // start process loop thread, error handler thread
     m_Worker       = std::thread(&EcatMaster::processLoop, this);
     m_ErrorHandler = std::thread(&EcatMaster::ecatCheck, this);
 
@@ -92,44 +100,45 @@ bool EcatMaster::start()
 // stop EtherCAT master
 void EcatMaster::stop()
 {
-	// already stopped
-    if (!m_Running) {
-        return;
-    }
-
     m_Running = false;
 
-	// wait for threads to finish
+    // wait for threads to finish
     if (m_Worker.joinable()) m_Worker.join();
     if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
 
-	// stop all slaves
+    // stop all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
 
         m_Slaves[i]->stop();
     }
+    m_Slaves.clear();
 
-	// send one last process data to set slaves to INIT state
-    ec_send_processdata();
-    ec_receive_processdata(EC_TIMEOUTRET);
+    if (m_Initialized) {
+        // send one last process data to set slaves to INIT state
+        ec_send_processdata();
+        ec_receive_processdata(EC_TIMEOUTRET);
 
-	// set slaves to INIT state
-    ec_slave[0].state = EC_STATE_INIT;
-    ec_writestate(0);
+        // set slaves to INIT state
+        ec_slave[0].state = EC_STATE_INIT;
+        ec_writestate(0);
 
-	// close EtherCAT master
-    ec_close();
+        // close EtherCAT master
+        ec_close();
+
+        // reset init flag
+        m_Initialized = false;
+    }
 }
 
 // set target position to servo in ratio [0.0, 1.0]
 void EcatMaster::servoMovePosition(float ratio)
 {
-	// clamp ratio to [0.0, 1.0]
-	if (ratio < 0.0f) ratio = 0.0f;
-	if (ratio > 1.0f) ratio = 1.0f;
+    // clamp ratio to [0.0, 1.0]
+    if (ratio < 0.0f) ratio = 0.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
 
-	// get pointer to servo
+    // get pointer to servo
     auto* servo = getPtrServo();
 
     if (servo == nullptr) {
@@ -142,7 +151,7 @@ void EcatMaster::servoMovePosition(float ratio)
 // set homing command to servo
 void EcatMaster::setHome()
 {
-	// get pointer to servo
+    // get pointer to servo
     auto* servo = getPtrServo();
 
     if (servo == nullptr) {
@@ -155,7 +164,7 @@ void EcatMaster::setHome()
 // if valid servo, return its status; else return empty status
 const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
 {
-	static constexpr ServoStatus empty{};  // return empty status if invalid
+    static constexpr ServoStatus empty {}; // return empty status if invalid
 
     if (ServoL7NH* servo = dynamic_cast<ServoL7NH*>(m_Slaves[slaveId].get())) {
         return servo->getStatus();
@@ -170,7 +179,7 @@ void EcatMaster::processLoop()
     constexpr int cycleTimeUs = 1'000; // 1ms
 
     while (m_Running) {
-		// process each slave
+        // process each slave
         for (int i = 1; i <= ec_slavecount; ++i) {
             if (m_Slaves[i] == nullptr) continue;
 
@@ -222,15 +231,16 @@ void EcatMaster::ecatCheck()
     int continuousErrorCount = 0;
 
     while (m_Running) {
-		// if WKC is less than expected, or check state flag is set, check all slaves
+        // if WKC is less than expected, or check state flag is set, check all slaves
         if (m_CurrentWKC.load() < m_ExpectedWKC
             || ec_group[m_CurrentGroup].docheckstate) {
-			// increment continuous error count
+            // increment continuous error count
             ++continuousErrorCount;
 
-			// if error count exceeds max, stop the master
+            // if error count exceeds max, stop the master
             if (continuousErrorCount > errorCountMax) {
-                std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!";
+                std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!" << std::endl;
+
                 m_Running = false;
                 break;
             }
@@ -239,10 +249,10 @@ void EcatMaster::ecatCheck()
             ec_group[m_CurrentGroup].docheckstate = FALSE;
             // read state of all slaves
             ec_readstate();
-			// check each slave state
+            // check each slave state
             slavesCheck();
 
-			// if check state flag is cleared, all slaves are resumed to OP state
+            // if check state flag is cleared, all slaves are resumed to OP state
             if (!ec_group[m_CurrentGroup].docheckstate) {
                 std::cout << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL" << std::endl;
             }
