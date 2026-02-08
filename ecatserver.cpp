@@ -13,7 +13,7 @@ EcatServer::EcatServer(QObject* parent)
     , m_server(new QTcpServer(this))
     , m_timer(new QTimer(this))
     , m_ecatManager(new EcatManager(this))
-    , m_tickCycle(5000) // 5 sec
+    , m_tickCycle(1000) // 1 sec
 {
     if (!m_ecatManager->connectMaster()) {
         // connect failed
@@ -102,6 +102,8 @@ void EcatServer::onTimerTick()
         m_ecatManager->reconnectMaster();
         return;
     }
+
+    // qDebug() << "[EcatServer::onTimerTick] is thread terminated :" << m_ecatManager->isThreadTerminated();
 
     // If there is a connected client, send servo status
     // TODO: send status to all connected clients

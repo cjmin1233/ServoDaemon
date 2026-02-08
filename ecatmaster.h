@@ -35,6 +35,12 @@ public:
 
     const ServoStatus& getServoStatus(int slaveId) const;
     const bool         isRunning() const { return m_Running; }
+    const bool         isServoRunning() const;
+
+    const bool isThreadTerminated() const
+    {
+        return !m_Worker.joinable() || !m_ErrorHandler.joinable();
+    }
 
 private:
     void processLoop();
@@ -42,7 +48,8 @@ private:
     void ecatCheck();
     void slavesCheck();
 
-    ServoL7NH* getPtrServo();
+    ServoL7NH*       getPtrServo();
+    const ServoL7NH* getPtrServo() const;
 
 private:
     std::atomic<bool> m_Running { false };

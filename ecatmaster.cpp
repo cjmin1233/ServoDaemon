@@ -18,7 +18,7 @@ bool EcatMaster::init(const std::string& ifname)
         return false;
     }
 
-	// set init flag
+    // set init flag
     m_Initialized = true;
     // After ec_init succeeded, state should be INIT
     std::cout << "[EcatMaster::init] ec_init on " << ifname << " succeeded" << std::endl;
@@ -171,6 +171,14 @@ const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
     }
 
     return empty;
+}
+
+const bool EcatMaster::isServoRunning() const
+{
+    if (const auto* ptrServo = getPtrServo()) {
+        return ptrServo->isRunning();
+    }
+    return false;
 }
 
 // main process loop
@@ -365,4 +373,13 @@ ServoL7NH* EcatMaster::getPtrServo()
     }
 
     return dynamic_cast<ServoL7NH*>(m_Slaves[m_ServoId].get());
+}
+
+const ServoL7NH* EcatMaster::getPtrServo() const
+{
+    if (m_ServoId <= 0) {
+        return nullptr;
+    }
+
+    return dynamic_cast<const ServoL7NH*>(m_Slaves[m_ServoId].get());
 }

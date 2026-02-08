@@ -49,6 +49,7 @@ public:
     void setHome();
 
     const ServoStatus& getStatus() const { return m_Status; }
+    const bool         isRunning() const;
 
 private:
     void stateCheck(RxPDO* rxpdo, const TxPDO* txpdo);

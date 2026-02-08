@@ -32,13 +32,7 @@ bool EcatManager::connectMaster()
         return false;
     }
 
-	// start process loop and error handler threads. return false if failed
-    if (!m_Master.start()) {
-        qWarning() << "[EcatManager::connectMaster] EtherCAT start failed";
-        return false;
-    }
-
-    return true;
+    return connectMaster(m_ifname);
 }
 
 bool EcatManager::connectMaster(const QString& ifname)
@@ -67,7 +61,7 @@ void EcatManager::reconnectMaster()
     disconnectMaster();
 
     // wait for a moment to allow hardware/drivers to settle
-    QThread::msleep(1000);
+    QThread::msleep(100);
 
     // try to connect again using the main connection logic
     if (connectMaster()) {
@@ -96,7 +90,7 @@ void EcatManager::setHome()
 // search for a valid EtherCAT adapter and update m_ifname
 void EcatManager::searchValidAdapter()
 {
-	// reset ifname
+    // reset ifname
     m_ifname = "";
 
     qInfo() << "[EcatManager::searchValidAdapter] Searching for a valid EtherCAT adapter...";
@@ -104,7 +98,7 @@ void EcatManager::searchValidAdapter()
     ec_adaptert* adapter = ec_find_adapters();
     ec_adaptert* current = adapter;
     while (current != nullptr) {
-        qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
+        // qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
 
         // Try to init master on this adapter to check if it's valid
         if (m_Master.init(current->name)) {
@@ -113,6 +107,7 @@ void EcatManager::searchValidAdapter()
             qInfo() << "[EcatManager::searchValidAdapter] Found valid adapter, updated ifname to:" << m_ifname;
 
             // Clean up immediately after check
+            m_Master.stop();
             ec_free_adapters(adapter);
             return;
         }

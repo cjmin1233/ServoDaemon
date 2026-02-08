@@ -15,6 +15,9 @@ public:
     const int          getSlaveCount() const { return ec_slavecount; }
     const ServoStatus& getServoStatus(int slaveId) const { return m_Master.getServoStatus(slaveId); }
     const bool         isMasterRunning() const { return m_Master.isRunning(); }
+    const bool         isServoRunning() const { return m_Master.isServoRunning(); }
+
+    const bool isThreadTerminated() const { return m_Master.isThreadTerminated(); }
 
     bool connectMaster();
     bool connectMaster(const QString& ifname);

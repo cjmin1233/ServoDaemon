@@ -2,6 +2,8 @@
 #include <iostream>
 #include <thread>
 
+#include <QDebug>
+
 #include "cia402.h"
 #include "servol7nh.h"
 
@@ -218,6 +220,17 @@ void ServoL7NH::setHome()
     m_flagHomingStart = true;
 }
 
+const bool ServoL7NH::isRunning() const
+{
+    const TxPDO* txpdo = ptrTxPDO();
+
+    if (txpdo == nullptr) return false;
+
+    const auto& statusWord = txpdo->status_word;
+
+    return (statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED;
+}
+
 void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     static constexpr int      stateCheckCycleCounter = 20;
@@ -226,10 +239,14 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
+        qDebug() << "[ServoL7NH::stateCheck] ecat state not op...";
         return;
     }
 
-    if (rxpdo == nullptr || txpdo == nullptr) return;
+    if (rxpdo == nullptr || txpdo == nullptr) {
+        qDebug() << "[ServoL7NH::stateCheck] pdo is nullptr...";
+        return;
+    }
 
     // Cycle delay for state check
     if (m_stateCheckCounter > 0) {
@@ -242,11 +259,15 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Fault Reset
     if (statusWord & cia402::SW_STATE_FAULT) {
+        qDebug() << "[ServoL7NH::stateCheck] servo state fault";
+
         controlWord |= cia402::CW_FAULT_RESET;
 
         m_stateCheckCounter = stateCheckCycleCounter;
         return;
     }
+
+    qDebug() << "[ServoL7NH::stateCheck] servo state transitions...";
 
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
@@ -265,7 +286,8 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     else if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_SWITCHED_ON) {
         if ((controlWord & bit0F) == cia402::CW_ENABLE_OP) {
             // Already tried to enable op. Drop to shutdown
-            controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
+            // controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
+            controlWord = cia402::CW_SHUTDOWN; // clear other bits
 
             std::cout << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown" << std::endl;
         } else {
@@ -276,6 +298,8 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         // Longer delay before next check
         m_stateCheckCounter = stateCheckCycleCounter * 2;
     }
+
+    qDebug() << "[ServoL7NH::stateCheck] current counter :" << m_stateCheckCounter;
 }
 
 void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)

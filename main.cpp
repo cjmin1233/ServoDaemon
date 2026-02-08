@@ -38,8 +38,10 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
 
 int main(int argc, char* argv[])
 {
+#ifndef QT_DEBUG
     // install custom message handler for logging
     qInstallMessageHandler(myMessageOutput);
+#endif
 
     QCoreApplication a(argc, argv);
 
