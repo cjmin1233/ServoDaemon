@@ -54,6 +54,7 @@ public:
 private:
     void stateCheck(RxPDO* rxpdo, const TxPDO* txpdo);
     void processPP(RxPDO* rxpdo, const TxPDO* txpdo);
+    void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
     void processHM(RxPDO* rxpdo, const TxPDO* txpdo);
 
     RxPDO*       ptrRxPDO() { return reinterpret_cast<RxPDO*>(ec_slave[m_slaveId].outputs); }

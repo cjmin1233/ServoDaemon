@@ -41,6 +41,7 @@ constexpr uint16_t SW_BIT_VOLTAGE_ENABLED = (1 << 4);  // Drive voltage is enabl
 constexpr uint16_t SW_BIT_WARNING_OCCURED = (1 << 7);  // A warning is active
 constexpr uint16_t SW_BIT_TARGET_REACHED  = (1 << 10); // Target position has been reached
 constexpr uint16_t SW_BIT_SET_POINT_ACK   = (1 << 12); // Setpoint has been acknowledged (PP mode)
+constexpr uint16_t SW_BIT_INTERNAL_LIMIT  = (1 << 11); // Internal limit active
 
 // --- Homing Mode (HM) Specific Bits ---
 constexpr uint16_t SW_BIT_HOMING_ATTAINED = (1 << 12); // Homing procedure is completed
@@ -58,18 +59,21 @@ enum class Mode : int8_t {
 };
 
 // --- [4] Object Dictionary Index ---
-constexpr uint16_t IDX_CONTROL_WORD     = 0x6040;
-constexpr uint16_t IDX_STATUS_WORD      = 0x6041;
-constexpr uint16_t IDX_OP_MODE          = 0x6060;
-constexpr uint16_t IDX_OP_MODE_DISPLAY  = 0x6061;
-constexpr uint16_t IDX_TARGET_POSITION  = 0x607A;
-constexpr uint16_t IDX_ACTUAL_POSITION  = 0x6064;
-constexpr uint16_t IDX_POSITION_WINDOW  = 0x6067;
-constexpr uint16_t IDX_PROFILE_VELOCITY = 0x6081;
-constexpr uint16_t IDX_PROFILE_ACCEL    = 0x6083;
-constexpr uint16_t IDX_PROFILE_DECEL    = 0x6084;
-constexpr uint16_t IDX_STOP_DECEL       = 0x6085;
-constexpr uint16_t IDX_DIGITAL_INPUTS   = 0x60FD;
+constexpr uint16_t IDX_CONTROL_WORD         = 0x6040;
+constexpr uint16_t IDX_STATUS_WORD          = 0x6041;
+constexpr uint16_t IDX_OP_MODE              = 0x6060;
+constexpr uint16_t IDX_OP_MODE_DISPLAY      = 0x6061;
+constexpr uint16_t IDX_TARGET_POSITION      = 0x607A;
+constexpr uint16_t IDX_TARGET_TORQUE        = 0x6071;
+constexpr uint16_t IDX_ACTUAL_POSITION      = 0x6064;
+constexpr uint16_t IDX_POSITION_WINDOW      = 0x6067;
+constexpr uint16_t IDX_PROFILE_VELOCITY     = 0x6081;
+constexpr uint16_t IDX_PROFILE_ACCEL        = 0x6083;
+constexpr uint16_t IDX_PROFILE_DECEL        = 0x6084;
+constexpr uint16_t IDX_STOP_DECEL           = 0x6085;
+constexpr uint16_t IDX_DIGITAL_INPUTS       = 0x60FD;
+constexpr uint16_t IDX_SPEED_LIMIT_FUNCTION = 0x230D;
+constexpr uint16_t IDX_SPEED_LIMIT_VALUE    = 0x230E;
 
 constexpr uint16_t IDX_HOME_OFFSET   = 0x607C;
 constexpr uint16_t IDX_HOMING_METHOD = 0x6098;

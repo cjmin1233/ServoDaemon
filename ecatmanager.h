@@ -24,6 +24,8 @@ public:
     void reconnectMaster();
     void disconnectMaster();
 
+    // bool checkInterface();
+
     void launchServoMove(float ratio);
     void setHome();
 

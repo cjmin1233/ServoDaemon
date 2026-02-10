@@ -133,8 +133,12 @@ void ServoL7NH::processData()
             break;
         }
         case cia402::Mode::PV:
-        case cia402::Mode::PT:
-            break; // Profile velocity / torque not implemented
+            break; // Profile Velocity
+        case cia402::Mode::PT: {
+            processPT(rxpdo, txpdo);
+
+            break;
+        }
         case cia402::Mode::HM: {
             processHM(rxpdo, txpdo);
 
@@ -324,6 +328,13 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
     }
 }
 
+void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
+{
+    // Profile torque mode
+    auto&       controlWord = rxpdo->control_word;
+    const auto& statusWord  = txpdo->status_word;
+}
+
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // homing mode
@@ -336,6 +347,7 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     const bool isHomingStart    = controlWord & cia402::CW_BIT_HOMING_START;
     const bool isHomingAttained = statusWord & cia402::SW_BIT_HOMING_ATTAINED;
     const bool isHomingError    = statusWord & cia402::SW_BIT_HOMING_ERROR;
+    const bool isLimit          = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
 
     if (isHomingError) {
         std::cout << "[ServoL7NH::processData] homing error occurred!" << std::endl;
@@ -357,6 +369,11 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // 2. Homing processing
     if (isHomingStart) {
+        // limit test
+        if (isLimit) {
+            std::cout << "[ServoL7NH::processHM] LIMIT!!!!!" << std::endl;
+        }
+
         // 2-1. Homing Attained, enter settling phase
         if (isHomingAttained && !m_isHomingSettling) {
             std::cout << "[ServoL7NH::processHM] Homing attained. Start settling check..." << std::endl;
