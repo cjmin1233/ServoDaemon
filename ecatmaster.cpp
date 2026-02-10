@@ -27,6 +27,7 @@ bool EcatMaster::init(const std::string& ifname)
         std::cout << "[EcatMaster::init] No Slaves found" << std::endl;
         ec_close();
         m_Initialized = false; // reset init flag
+
         return false;
     }
     // After ec_config_init succeeded, slaves are in PRE-OP state
@@ -77,6 +78,11 @@ bool EcatMaster::start()
         return false;
     }
 
+    // not initialized
+    if (!m_Initialized) {
+        return false;
+    }
+
     // Ensure previous threads are properly joined before starting new ones
     if (m_Worker.joinable()) m_Worker.join();
     if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
@@ -122,6 +128,7 @@ void EcatMaster::stop()
         // set slaves to INIT state
         ec_slave[0].state = EC_STATE_INIT;
         ec_writestate(0);
+        ec_statecheck(0, EC_STATE_INIT, EC_TIMEOUTSTATE);
 
         // close EtherCAT master
         ec_close();
@@ -179,6 +186,20 @@ const bool EcatMaster::isServoRunning() const
         return ptrServo->isRunning();
     }
     return false;
+}
+
+bool EcatMaster::isAdapterValid(const std::string& ifname)
+{
+    if (!ec_init(ifname.c_str())) {
+        return false;
+    }
+
+    int slaveCount = ec_config_init(FALSE);
+
+    ec_close();
+    std::this_thread::sleep_for(std::chrono::microseconds(10000));
+
+    return (slaveCount > 0);
 }
 
 // main process loop
@@ -368,11 +389,7 @@ void EcatMaster::slavesCheck()
 // get pointer to ServoL7NH instance
 ServoL7NH* EcatMaster::getPtrServo()
 {
-    if (m_ServoId <= 0) {
-        return nullptr;
-    }
-
-    return dynamic_cast<ServoL7NH*>(m_Slaves[m_ServoId].get());
+    return const_cast<ServoL7NH*>(static_cast<const EcatMaster*>(this)->getPtrServo());
 }
 
 const ServoL7NH* EcatMaster::getPtrServo() const

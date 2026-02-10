@@ -240,7 +240,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
         qDebug() << "[ServoL7NH::stateCheck] ecat state not op...";
-        return;
+        // return;
     }
 
     if (rxpdo == nullptr || txpdo == nullptr) {
@@ -299,7 +299,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         m_stateCheckCounter = stateCheckCycleCounter * 2;
     }
 
-    qDebug() << "[ServoL7NH::stateCheck] current counter :" << m_stateCheckCounter;
+    // qDebug() << "[ServoL7NH::stateCheck] current counter :" << m_stateCheckCounter;
 }
 
 void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)

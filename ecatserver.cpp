@@ -15,9 +15,9 @@ EcatServer::EcatServer(QObject* parent)
     , m_ecatManager(new EcatManager(this))
     , m_tickCycle(1000) // 1 sec
 {
-    if (!m_ecatManager->connectMaster()) {
-        // connect failed
-    }
+    // if (!m_ecatManager->connectMaster()) {
+    //     // connect failed
+    // }
 
     // start listening for client connections
     if (m_server->listen(QHostAddress(Config::HOST), Config::PORT)) {
@@ -86,19 +86,22 @@ void EcatServer::onClientDisconnected()
 {
     qDebug() << "[EcatServer::onClientDisconnected] Client Disconnected!";
 
-    m_currentClient = nullptr;
+    if (m_currentClient) {
+        m_currentClient->deleteLater();
+        m_currentClient = nullptr;
+    }
 }
 
 void EcatServer::onTimerTick()
 {
     // If server is not listening, try to restart listening
-    if (!m_server->isListening()) {
+    if (m_server && !m_server->isListening()) {
         m_server->listen(QHostAddress(Config::HOST), Config::PORT);
         return;
     }
 
     // If EtherCAT master is not running, try to reconnect
-    if (!m_ecatManager->isMasterRunning()) {
+    if (m_ecatManager && !m_ecatManager->isMasterRunning()) {
         m_ecatManager->reconnectMaster();
         return;
     }

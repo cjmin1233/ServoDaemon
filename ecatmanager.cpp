@@ -19,8 +19,8 @@ EcatManager::~EcatManager()
 bool EcatManager::connectMaster()
 {
     // try to connect with previous ifname first
-    if (!m_ifname.isEmpty() && connectMaster(m_ifname)) {
-        return true;
+    if (!m_ifname.isEmpty() && m_Master.isAdapterValid(m_ifname.toStdString())) {
+        return connectMaster(m_ifname);
     }
 
     qInfo() << "[EcatManager::connectMaster] Failed to connect with previous ifname, or no ifname was set. "
@@ -73,9 +73,29 @@ void EcatManager::reconnectMaster()
 
 void EcatManager::disconnectMaster()
 {
+    qDebug() << "[EcatManager::disconnectMaster]";
+
     // stop to terminate threads, reset init state
     m_Master.stop();
 }
+
+// bool EcatManager::checkInterface()
+// {
+//     if (m_ifname.isEmpty()) {
+//         qDebug() << "[EcatManager::checkInterface] Interface name is empty!";
+//         return false;
+//     }
+
+//     qDebug() << "[EcatManager::checkInterface] Checking adapter validity:" << m_ifname;
+
+//     if (m_Master.isAdapterValid(m_ifname.toStdString())) {
+//         qDebug() << "[EcatManager::checkInterface] Adapter is valid and slaved are detected.";
+//         return true;
+//     }
+
+//     qWarning() << "[EcatManager::checkInterface] Adapter is invalid or no slaves found.";
+//     return false;
+// }
 
 void EcatManager::launchServoMove(float ratio)
 {
@@ -100,14 +120,11 @@ void EcatManager::searchValidAdapter()
     while (current != nullptr) {
         // qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
 
-        // Try to init master on this adapter to check if it's valid
-        if (m_Master.init(current->name)) {
-            // If init succeeds, it's a valid adapter with slaves
+        if (m_Master.isAdapterValid(current->name)) {
             m_ifname = current->name;
             qInfo() << "[EcatManager::searchValidAdapter] Found valid adapter, updated ifname to:" << m_ifname;
 
             // Clean up immediately after check
-            m_Master.stop();
             ec_free_adapters(adapter);
             return;
         }

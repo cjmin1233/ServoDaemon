@@ -42,6 +42,8 @@ public:
         return !m_Worker.joinable() || !m_ErrorHandler.joinable();
     }
 
+    bool isAdapterValid(const std::string& ifname);
+
 private:
     void processLoop();
     bool reqOpState();

@@ -12,6 +12,7 @@ class EcatServer : public QObject {
     Q_OBJECT
 public:
     explicit EcatServer(QObject* parent = nullptr);
+    ~EcatServer() = default;
 
 signals:
 
