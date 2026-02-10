@@ -47,7 +47,8 @@ int main(int argc, char* argv[])
 
     qDebug() << "---------- Servo Daemon Started ----------";
 
-    auto* server = new EcatServer(&a);
+    EcatServer* server = new EcatServer(&a);
+    server->start();
 
     return a.exec();
 }

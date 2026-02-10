@@ -295,6 +295,8 @@ void EcatMaster::ecatCheck()
 void EcatMaster::slavesCheck()
 {
     for (int i = 1; i <= ec_slavecount; ++i) {
+        if (!m_Running) break;
+
         auto& slave = ec_slave[i];
 
         if (slave.group == m_CurrentGroup

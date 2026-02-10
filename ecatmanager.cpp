@@ -79,24 +79,6 @@ void EcatManager::disconnectMaster()
     m_Master.stop();
 }
 
-// bool EcatManager::checkInterface()
-// {
-//     if (m_ifname.isEmpty()) {
-//         qDebug() << "[EcatManager::checkInterface] Interface name is empty!";
-//         return false;
-//     }
-
-//     qDebug() << "[EcatManager::checkInterface] Checking adapter validity:" << m_ifname;
-
-//     if (m_Master.isAdapterValid(m_ifname.toStdString())) {
-//         qDebug() << "[EcatManager::checkInterface] Adapter is valid and slaved are detected.";
-//         return true;
-//     }
-
-//     qWarning() << "[EcatManager::checkInterface] Adapter is invalid or no slaves found.";
-//     return false;
-// }
-
 void EcatManager::launchServoMove(float ratio)
 {
     m_Master.servoMovePosition(ratio);

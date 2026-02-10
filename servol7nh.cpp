@@ -350,7 +350,7 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     const bool isLimit          = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
 
     if (isHomingError) {
-        std::cout << "[ServoL7NH::processData] homing error occurred!" << std::endl;
+        std::cout << "[ServoL7NH::processHM] homing error occurred!" << std::endl;
 
         controlWord        &= ~(cia402::CW_BIT_HOMING_START);
         m_flagHomingStart   = false;

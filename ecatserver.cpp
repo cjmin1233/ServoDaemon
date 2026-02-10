@@ -1,5 +1,6 @@
 #include "ecatserver.h"
 
+#include <QDebug>
 #include <QFile>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -15,23 +16,66 @@ EcatServer::EcatServer(QObject* parent)
     , m_ecatManager(new EcatManager(this))
     , m_tickCycle(1000) // 1 sec
 {
-    // if (!m_ecatManager->connectMaster()) {
-    //     // connect failed
-    // }
-
-    // start listening for client connections
-    if (m_server->listen(QHostAddress(Config::HOST), Config::PORT)) {
-        qDebug() << "[EcatServer::] Server Listening on port" << Config::PORT;
-
-        QObject::connect(m_server, &QTcpServer::newConnection,
-                         this, &EcatServer::onServerConnection);
-    } else {
-        qCritical() << "[EcatServer::] Server Listen Failed" << m_server->errorString();
-    }
-
+    QObject::connect(m_server, &QTcpServer::newConnection,
+                     this, &EcatServer::onServerConnection);
     QObject::connect(m_timer, &QTimer::timeout,
                      this, &EcatServer::onTimerTick);
-    m_timer->start(m_tickCycle);
+}
+
+EcatServer::~EcatServer()
+{
+    qDebug() << "[EcatServer::~EcatServer] Close ecat server";
+
+    stop();
+}
+
+void EcatServer::start()
+{
+    qInfo() << "[EcatServer::start] Sequence started. Checking dependencies...";
+
+    // 1. Connect Ecat master
+    if (!m_ecatManager->connectMaster()) {
+        qWarning() << "[EcatServer::start] Ecat Master: OFFLINE. Try to reconnect later...";
+
+        // start timer to reconnect
+        startTimer();
+        return;
+    }
+
+    qInfo() << "[EcatServer::start] Ecat Master: ONLINE";
+
+    // 2. Connect server
+    if (!m_server->listen(QHostAddress(Config::HOST /*127.0.0.1*/), Config::PORT /*5000*/)) {
+        qWarning() << "[EcatServer::start] TCP Server: LISTEN FAILED -" << m_server->errorString();
+    } else {
+        qInfo() << "[EcatServer::start] TCP Server: LISTENING on port" << Config::PORT;
+    }
+
+    // start timer
+    startTimer();
+}
+
+void EcatServer::stop()
+{
+    qInfo() << "[EcatServer] Stopping server...";
+
+    // stop timer
+    m_timer->stop();
+
+    // disconnect client
+    if (m_currentClient) {
+        m_currentClient->disconnectFromHost();
+
+        // automatically call onClientDisconnected... no need to delete client
+    }
+
+    // close server
+    if (m_server->isListening()) {
+        m_server->close();
+    }
+
+    // disconnect EtherCAT master
+    m_ecatManager->disconnectMaster();
 }
 
 void EcatServer::onServerConnection()
@@ -44,9 +88,12 @@ void EcatServer::onServerConnection()
     // accept new client connection
     m_currentClient = m_server->nextPendingConnection();
 
-    if (m_currentClient == nullptr) return;
+    if (m_currentClient == nullptr) {
+        qWarning() << "[EcatServer::onServerConnection] Client connect failed!";
+        return;
+    }
 
-    qDebug() << "[EcatServer::onServerConnection] Client Connected!";
+    qDebug() << "[EcatServer::onServerConnection] Client connected!";
 
     // connect signals for client socket
     QObject::connect(m_currentClient, &QTcpSocket::readyRead,
@@ -57,6 +104,8 @@ void EcatServer::onServerConnection()
 
 void EcatServer::onClientReadyread()
 {
+    if (m_currentClient == nullptr) return;
+
     // read data from client
     QDataStream in(m_currentClient);
     in.setVersion(QDataStream::Qt_6_5);
@@ -64,22 +113,54 @@ void EcatServer::onClientReadyread()
     // start transaction for safe reading
     in.startTransaction();
 
+    // TODO: read command structure
     quint32 blockSize;
-    float   ratio;
+    quint32 cmdInt;
 
     // read data fields
     in >> blockSize;
-    in >> ratio;
+    in >> cmdInt;
 
-    // check if transaction is successful
-    if (!in.commitTransaction()) {
-        return;
+    CommandType cmd = static_cast<CommandType>(cmdInt);
+
+    switch (cmd) {
+    case CommandType::MovePosition: {
+        float ratio;
+        in >> ratio;
+        // check if transaction is successful
+        if (!in.commitTransaction()) {
+            return;
+        }
+
+        qDebug() << "[EcatServer::onClientReadyread] Command Received: MovePosition, Ratio:" << ratio;
+        m_ecatManager->launchServoMove(ratio);
+        break;
     }
+    case CommandType::SetHome: {
+        // check if transaction is successful
+        if (!in.commitTransaction()) {
+            return;
+        }
 
-    qDebug() << "Received Ratio:" << ratio;
+        qDebug() << "[EcatServer::onClientReadyread] Command Received: SetHome";
+        m_ecatManager->setHome();
+        break;
+    }
+    case CommandType::StopServo: {
+        // check if transaction is successful
+        if (!in.commitTransaction()) {
+            return;
+        }
 
-    // launch servo move
-    m_ecatManager->launchServoMove(ratio);
+        qDebug() << "[EcatServer::onClientReadyread] Command Received: StopServo";
+        m_ecatManager->disconnectMaster();
+        break;
+    }
+    default:
+        in.rollbackTransaction();
+        qWarning() << "[EcatServer::onClientReadyread] Unknown Command Received:" << cmdInt;
+        break;
+    }
 }
 
 void EcatServer::onClientDisconnected()
@@ -94,19 +175,21 @@ void EcatServer::onClientDisconnected()
 
 void EcatServer::onTimerTick()
 {
-    // If server is not listening, try to restart listening
-    if (m_server && !m_server->isListening()) {
-        m_server->listen(QHostAddress(Config::HOST), Config::PORT);
-        return;
-    }
-
     // If EtherCAT master is not running, try to reconnect
     if (m_ecatManager && !m_ecatManager->isMasterRunning()) {
+        qWarning() << "[EcatServer::onTimerTick] Ecat master is not running, try to reconnect...";
+
         m_ecatManager->reconnectMaster();
         return;
     }
 
-    // qDebug() << "[EcatServer::onTimerTick] is thread terminated :" << m_ecatManager->isThreadTerminated();
+    // If server is not listening, try to restart listening
+    if (m_server && !m_server->isListening()) {
+        qWarning() << "[EcatServer::onTimerTick] Ecat server is not listening, try to restart...";
+
+        m_server->listen(QHostAddress(Config::HOST), Config::PORT);
+        return;
+    }
 
     // If there is a connected client, send servo status
     // TODO: send status to all connected clients
@@ -134,5 +217,14 @@ void EcatServer::onTimerTick()
         // wait until all data is written
         m_currentClient->waitForBytesWritten();
         m_currentClient->flush();
+    }
+}
+
+void EcatServer::startTimer()
+{
+    if (m_timer && !m_timer->isActive()) {
+        m_timer->start(m_tickCycle);
+
+        qInfo() << "[EcatServer::start] Ecat server timer is now active.";
     }
 }

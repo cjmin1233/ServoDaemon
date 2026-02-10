@@ -12,15 +12,19 @@ class EcatServer : public QObject {
     Q_OBJECT
 public:
     explicit EcatServer(QObject* parent = nullptr);
-    ~EcatServer() = default;
+    ~EcatServer();
 
-signals:
+    void start();
+    void stop();
 
 private slots:
     void onServerConnection();
     void onClientReadyread();
     void onClientDisconnected();
     void onTimerTick();
+
+private:
+    void startTimer();
 
 private:
     QTcpServer* m_server        = nullptr;
