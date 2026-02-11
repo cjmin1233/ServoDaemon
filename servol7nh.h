@@ -27,6 +27,7 @@ public:
         int32_t  actual_velocity; // 0x606C
         int16_t  actual_torque;   // 0x6077
         uint32_t digital_inputs;  // 0x60FD
+        uint16_t error_code;      // 0x603F
     } TxPDO;
 
 #pragma pack(pop)
@@ -57,6 +58,8 @@ private:
     void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
     void processHM(RxPDO* rxpdo, const TxPDO* txpdo);
 
+    const bool isTargetReached(RxPDO* rxpdo, const TxPDO* txpdo) const;
+
     RxPDO*       ptrRxPDO() { return reinterpret_cast<RxPDO*>(ec_slave[m_slaveId].outputs); }
     const TxPDO* ptrTxPDO() const { return reinterpret_cast<const TxPDO*>(ec_slave[m_slaveId].inputs); }
 
@@ -69,7 +72,7 @@ private:
     int m_stateCheckCounter = 0;
 
     bool     m_isHomingSettling      = false;
-    int      m_homingSettlingCounter = 0;
+    int      m_homingSettlingTimeout = 0;
     int      m_homingStableCounter   = 0;
     uint32_t m_posWindow             = 0;
 

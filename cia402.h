@@ -75,6 +75,12 @@ constexpr uint16_t IDX_DIGITAL_INPUTS       = 0x60FD;
 constexpr uint16_t IDX_SPEED_LIMIT_FUNCTION = 0x230D;
 constexpr uint16_t IDX_SPEED_LIMIT_VALUE    = 0x230E;
 
+// Option codes
+constexpr uint16_t IDX_QUICK_STOP_OPTION = 0x605A;
+constexpr uint16_t IDX_SHUTDOWN_OPTION   = 0x605B;
+constexpr uint16_t IDX_DISABLE_OPTION    = 0x605C;
+constexpr uint16_t IDX_HALT_OPTION       = 0x605D;
+
 constexpr uint16_t IDX_HOME_OFFSET   = 0x607C;
 constexpr uint16_t IDX_HOMING_METHOD = 0x6098;
 constexpr uint16_t IDX_HOMING_SPEED  = 0x6099;
@@ -140,6 +146,9 @@ constexpr uint32_t ENTRY_TX_ACTUAL_TORQUE = 0x60770010;
 
 // Digital Inputs (0x60FD:00, 32bit) -> 0x60FD0020
 constexpr uint32_t ENTRY_TX_DIGITAL_INPUTS = 0x60FD0020;
+
+// Error Code (0x603F:00, 16bit) -> 0x603F0010
+constexpr uint32_t ENTRY_TX_ERROR_CODE = 0x603F0010;
 
 // --- [10] Homing Methods (0x6098) ---
 constexpr int8_t HM_NEG_LIMIT_SWITCH_AND_INDEX = 1;  // Find index pulse after contacting negative limit switch
