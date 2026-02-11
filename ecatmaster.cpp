@@ -168,6 +168,18 @@ void EcatMaster::setHome()
     servo->setHome();
 }
 
+void EcatMaster::setTorque()
+{
+    // get pointer to servo
+    auto* servo = getPtrServo();
+
+    if (servo == nullptr) {
+        return;
+    }
+
+    servo->setTorque(1000); // 100% torque for test
+}
+
 // if valid servo, return its status; else return empty status
 const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
 {

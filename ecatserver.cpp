@@ -146,6 +146,16 @@ void EcatServer::onClientReadyread()
         m_ecatManager->setHome();
         break;
     }
+    case CommandType::SetTorque: {
+        // check if transaction is successful
+        if (!in.commitTransaction()) {
+            return;
+        }
+
+        qDebug() << "[EcatServer::onClientReadyread] Command Received: SetTorque";
+        m_ecatManager->setTorque();
+        break;
+    }
     case CommandType::StopServo: {
         // check if transaction is successful
         if (!in.commitTransaction()) {

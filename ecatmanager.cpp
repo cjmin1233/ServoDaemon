@@ -89,6 +89,11 @@ void EcatManager::setHome()
     m_Master.setHome();
 }
 
+void EcatManager::setTorque()
+{
+    m_Master.setTorque();
+}
+
 // search for a valid EtherCAT adapter and update m_ifname
 void EcatManager::searchValidAdapter()
 {

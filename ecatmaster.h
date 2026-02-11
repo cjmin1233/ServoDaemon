@@ -32,6 +32,7 @@ public:
 
     void servoMovePosition(float ratio);
     void setHome();
+    void setTorque();
 
     const ServoStatus& getServoStatus(int slaveId) const;
     const bool         isRunning() const { return m_Running; }

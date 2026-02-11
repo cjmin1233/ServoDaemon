@@ -28,6 +28,7 @@ public:
 
     void launchServoMove(float ratio);
     void setHome();
+    void setTorque();
 
 private:
     void searchValidAdapter();

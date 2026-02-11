@@ -35,6 +35,7 @@ int ServoL7NH::setupL7NH(uint16 slaveId)
         cia402::ENTRY_RX_MODES_OF_OP,
         cia402::ENTRY_RX_TARGET_POSITION,
         cia402::ENTRY_RX_TARGET_VELOCITY,
+        cia402::ENTRY_RX_TARGET_TORQUE,
         cia402::ENTRY_RX_DIGITAL_OUTPUTS,
     };
     uint8_t entryCount = sizeof(rxpdoEntries) / sizeof(rxpdoEntries[0]);
@@ -131,13 +132,24 @@ void ServoL7NH::processData()
 {
     auto* rxpdo = ptrRxPDO();
 
-    const auto* txpdo       = ptrTxPDO();
-    const auto& statusWord  = txpdo->status_word;
-    const auto& currentMode = static_cast<cia402::Mode>(txpdo->mode_disp);
+    const auto* txpdo      = ptrTxPDO();
+    const auto& statusWord = txpdo->status_word;
+
+    //     if (statusWord & cia402::SW_BIT_WARNING_OCCURED) {
+    // #ifdef QT_DEBUG
+    //         std::cout << "[ServoL7NH::processData] Warning Detected!" << std::endl;
+    // #else
+    //         qWarning() << "[ServoL7NH::processData] Warning Detected!";
+    // #endif
+    //     }
 
     if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED) {
+        const auto& currentMode = static_cast<cia402::Mode>(txpdo->mode_disp);
+
         // main operation
         switch (currentMode) {
+        case cia402::Mode::None:
+            break; // No operation mode selected
         case cia402::Mode::PP: {
             processPP(rxpdo, txpdo);
 
@@ -217,6 +229,8 @@ void ServoL7NH::setTargetPosition(int32_t pos)
 
     rxpdo->mode             = static_cast<int8_t>(cia402::Mode::PP);
     rxpdo->target_position  = pos;
+    rxpdo->target_torque    = 0;                              // Clear target torque
+    rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);         // Clear halt bit
     rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);      // Absolute move
     rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
@@ -230,11 +244,26 @@ void ServoL7NH::setHome()
     if (rxpdo == nullptr) return;
 
     rxpdo->mode             = static_cast<int8_t>(cia402::Mode::HM); // Set to Homing Mode
+    rxpdo->target_position  = 0;                                     // Set target position 0...just in case
+    rxpdo->target_torque    = 0;                                     // Clear target torque
+    rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);                // Clear halt bit
     rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);             // Absolute move
     rxpdo->control_word    &= ~(cia402::CW_BIT_HOMING_START);        // Clear homing start bit
-    rxpdo->target_position  = 0;                                     // Set target position 0...just in case
 
     m_flagHomingStart = true;
+}
+
+void ServoL7NH::setTorque(int16_t torque)
+{
+    RxPDO* rxpdo = ptrRxPDO();
+
+    if (rxpdo == nullptr) return;
+
+    rxpdo->mode           = static_cast<int8_t>(cia402::Mode::PT);
+    rxpdo->control_word  &= ~(cia402::CW_BIT_HALT); // Clear halt bit
+    rxpdo->target_torque  = 1200;
+
+    m_flagTorqueStart = true;
 }
 
 const bool ServoL7NH::isRunning() const
@@ -275,19 +304,30 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     const uint16_t& statusWord  = txpdo->status_word;
 
     // Fault Reset
-    if (statusWord & cia402::SW_STATE_FAULT) {
+    if ((statusWord & cia402::SW_STATE_MASK1) == cia402::SW_STATE_FAULT) {
         qWarning() << "[ServoL7NH::stateCheck] Servo FAULT Detected!";
 
-        controlWord        |= cia402::CW_FAULT_RESET;
-        m_Status.hasError   = true;
-        m_Status.errorCode  = txpdo->error_code;
+        // Set control word
+        controlWord &= bit0F;                  // clear bit 4 to 15
+        controlWord |= cia402::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
+
+        // Update status
+        m_Status.hasError  = true;
+        m_Status.errorCode = txpdo->error_code;
+
+        // Clear pdo values
+        rxpdo->mode          = 0;
+        rxpdo->target_torque = 0;
 
         m_stateCheckCounter = stateCheckCycleCounter;
         return;
     } else {
-        controlWord        &= ~(cia402::CW_FAULT_RESET);
-        m_Status.hasError   = false;
-        m_Status.errorCode  = 0;
+        // Set control word
+        controlWord &= ~(cia402::CW_FAULT_RESET); // bit 7: Fault reset(1 -> 0)
+
+        // Update status
+        m_Status.hasError  = false;
+        m_Status.errorCode = 0;
     }
 
     qDebug() << "[ServoL7NH::stateCheck] servo state transitions...";
@@ -321,8 +361,6 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         // Longer delay before next check
         m_stateCheckCounter = stateCheckCycleCounter * 2;
     }
-
-    // qDebug() << "[ServoL7NH::stateCheck] current counter :" << m_stateCheckCounter;
 }
 
 void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
@@ -352,6 +390,16 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
     // Profile torque mode
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
+
+    const bool isWarning = statusWord & cia402::SW_BIT_WARNING_OCCURED;
+    const bool isLimit   = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
+
+    // if (isWarning) {
+    //     qWarning() << "[ServoL7NH::processPT] PT Mode Warning Detected!";
+    // }
+    if (isLimit) {
+        qWarning() << "[ServoL7NH::processPT] Internal Limit Active: Torque might be capped by drive parameters.";
+    }
 }
 
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
@@ -418,8 +466,10 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
                 controlWord        &= ~(cia402::CW_BIT_HOMING_START);
                 m_isHomingSettling  = false;
 
-                // return to 0
-                setTargetPosition(0);
+                // // return to 0
+                // setTargetPosition(0);
+
+                controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
             }
             // Failure: Timeout occurred before becoming stable
             else if (m_homingSettlingTimeout <= 0) {

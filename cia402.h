@@ -49,13 +49,14 @@ constexpr uint16_t SW_BIT_HOMING_ERROR    = (1 << 13); // An error occurred duri
 
 // --- [3] Modes of Operation (0x6060) ---
 enum class Mode : int8_t {
-    PP  = 1, // Profile Position Mode
-    PV  = 3, // Profile Velocity Mode
-    PT  = 4, // Profile Torque Mode
-    HM  = 6, // Homing Mode
-    CSP = 8, // Cyclic Synchronous Position Mode
-    CSV = 9, // Cyclic Synchronous Velocity Mode
-    CST = 10 // Cyclic Synchronous Torque Mode
+    None = 0,
+    PP   = 1, // Profile Position Mode
+    PV   = 3, // Profile Velocity Mode
+    PT   = 4, // Profile Torque Mode
+    HM   = 6, // Homing Mode
+    CSP  = 8, // Cyclic Synchronous Position Mode
+    CSV  = 9, // Cyclic Synchronous Velocity Mode
+    CST  = 10 // Cyclic Synchronous Torque Mode
 };
 
 // --- [4] Object Dictionary Index ---
@@ -123,6 +124,9 @@ constexpr uint32_t ENTRY_RX_TARGET_POSITION = 0x607A0020;
 
 // Target Velocity (0x60FF:00, 32bit) -> 0x60FF0020
 constexpr uint32_t ENTRY_RX_TARGET_VELOCITY = 0x60FF0020;
+
+// Target Torque (0x6071:00, 16bit) -> 0x60710010
+constexpr uint32_t ENTRY_RX_TARGET_TORQUE = 0x60710010;
 
 // Digital Outputs (0x60FE:01, 32bit) -> 0x60FE0120
 constexpr uint32_t ENTRY_RX_DIGITAL_OUTPUTS = 0x60FE0120;

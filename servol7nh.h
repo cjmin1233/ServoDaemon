@@ -16,6 +16,7 @@ public:
         int8_t   mode;            // 0x6060
         int32_t  target_position; // 0x607A
         int32_t  target_velocity; // 0x60FF
+        int16_t  target_torque;   // 0x6071
         uint32_t digital_outputs; // 0x60FE:01
     } RxPDO;
 
@@ -48,6 +49,7 @@ public:
     void setTargetPosition(float ratio);
     void setTargetPosition(int32_t pos);
     void setHome();
+    void setTorque(int16_t torque);
 
     const ServoStatus& getStatus() const { return m_Status; }
     const bool         isRunning() const;
@@ -68,6 +70,7 @@ private:
 
     bool m_flagNewSetpoint = false;
     bool m_flagHomingStart = false;
+    bool m_flagTorqueStart = false;
 
     int m_stateCheckCounter = 0;
 
