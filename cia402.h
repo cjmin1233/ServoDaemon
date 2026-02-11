@@ -30,8 +30,8 @@ constexpr uint16_t SW_STATE_FAULT_REACTION     = 0x000F;
 constexpr uint16_t SW_STATE_FAULT              = 0x0008;
 
 // --- Control Word (0x6040) Bit Flags ---
-constexpr uint16_t CW_BIT_NEW_SETPOINT           = (1 << 4); // bit 4: Apply new setpoint (PP mode, Rising edge)
-constexpr uint16_t CW_BIT_HOMING_START           = (1 << 4); // bit 4: Start homing operation (HM mode)
+constexpr uint16_t CW_BIT_NEW_SETPOINT = (1 << 4); // bit 4: Apply new setpoint (PP & HM mode)
+// constexpr uint16_t CW_BIT_HOMING_START           = (1 << 4); // bit 4: Start homing operation (HM mode)
 constexpr uint16_t CW_BIT_CHANGE_SET_IMMEDIATELY = (1 << 5); // bit 5: Apply setpoint immediately (PP mode)
 constexpr uint16_t CW_BIT_ABS_REL                = (1 << 6); // bit 6: Use Absolute(0) or Relative(1) position
 constexpr uint16_t CW_BIT_HALT                   = (1 << 8); // bit 8: Halt motion

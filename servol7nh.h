@@ -60,7 +60,9 @@ private:
     void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
     void processHM(RxPDO* rxpdo, const TxPDO* txpdo);
 
-    const bool isTargetReached(RxPDO* rxpdo, const TxPDO* txpdo) const;
+    void settling(RxPDO* rxpdo, const TxPDO* txpdo);
+
+    const bool isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const;
 
     RxPDO*       ptrRxPDO() { return reinterpret_cast<RxPDO*>(ec_slave[m_slaveId].outputs); }
     const TxPDO* ptrTxPDO() const { return reinterpret_cast<const TxPDO*>(ec_slave[m_slaveId].inputs); }
@@ -74,9 +76,10 @@ private:
 
     int m_stateCheckCounter = 0;
 
-    bool     m_isHomingSettling      = false;
-    int      m_homingSettlingTimeout = 0;
-    int      m_homingStableCounter   = 0;
+    // settling variables
+    bool     m_isSettling            = false;
+    int      m_settlingTimeout       = 0;
+    int      m_settlingStableCounter = 0;
     uint32_t m_posWindow             = 0;
 
     ServoStatus m_Status = {};

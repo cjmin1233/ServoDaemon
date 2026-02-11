@@ -7,6 +7,10 @@
 #include "cia402.h"
 #include "servol7nh.h"
 
+// settling constants
+static constexpr int SETTLING_TIMEOUT      = 5000;
+static constexpr int SETTLING_STABLE_COUNT = 50;
+
 bool ServoL7NH::checkL7NH(int slaveId)
 {
     const auto& slave = ec_slave[slaveId];
@@ -16,7 +20,7 @@ bool ServoL7NH::checkL7NH(int slaveId)
 
 int ServoL7NH::setupL7NH(uint16 slaveId)
 {
-    std::cout << "[ServoL7NH::setupL7NH] Setup servo " << slaveId << " start" << std::endl;
+    qInfo() << "[ServoL7NH::setupL7NH] Setup servo " << slaveId << " start";
 
     // Verify it's name starts with "L7NH"
     if (std::string(ec_slave[slaveId].name).find("L7NH") != 0) return 0;
@@ -120,11 +124,8 @@ int ServoL7NH::setupL7NH(uint16 slaveId)
     success &= (ec_SDOwrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, FALSE, sizeof(shutdownOption), &shutdownOption, EC_TIMEOUTRXM) > 0);
     success &= (ec_SDOwrite(slaveId, cia402::IDX_HALT_OPTION, 0, FALSE, sizeof(haltOption), &haltOption, EC_TIMEOUTRXM) > 0);
 
-#ifdef QT_DEBUG
-    std::cout << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed") << std::endl;
-#else
     qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
-#endif
+
     return success;
 }
 
@@ -136,11 +137,7 @@ void ServoL7NH::processData()
     const auto& statusWord = txpdo->status_word;
 
     //     if (statusWord & cia402::SW_BIT_WARNING_OCCURED) {
-    // #ifdef QT_DEBUG
-    //         std::cout << "[ServoL7NH::processData] Warning Detected!" << std::endl;
-    // #else
     //         qWarning() << "[ServoL7NH::processData] Warning Detected!";
-    // #endif
     //     }
 
     if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED) {
@@ -172,7 +169,7 @@ void ServoL7NH::processData()
         case cia402::Mode::CSV:
             break;
         default:
-            std::cout << "[ServoL7NH::processData] invalid mode : " << static_cast<int8_t>(currentMode) << std::endl;
+            qInfo() << "[ServoL7NH::processData] invalid mode : " << static_cast<int8_t>(currentMode);
             break;
         }
 
@@ -188,19 +185,12 @@ void ServoL7NH::processData()
 
 void ServoL7NH::start()
 {
-    RxPDO* rxpdo = ptrRxPDO();
-
-    if (rxpdo == nullptr) return;
-
-    rxpdo->mode          = static_cast<int8_t>(cia402::Mode::HM); // Set to Homing Mode
-    rxpdo->control_word &= ~(cia402::CW_BIT_ABS_REL);             // Absolute move
-
     int psize = sizeof(m_posWindow);
     // read position window setting
     ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
 
-    // set homing flag to start homing mode
-    m_flagHomingStart = true;
+    // start command: homing mode
+    setHome();
 }
 
 void ServoL7NH::stop()
@@ -235,6 +225,7 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
     m_flagNewSetpoint = true;
+    m_isSettling      = false;
 }
 
 void ServoL7NH::setHome()
@@ -248,9 +239,10 @@ void ServoL7NH::setHome()
     rxpdo->target_torque    = 0;                                     // Clear target torque
     rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);                // Clear halt bit
     rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);             // Absolute move
-    rxpdo->control_word    &= ~(cia402::CW_BIT_HOMING_START);        // Clear homing start bit
+    rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT);        // Clear homing start bit
 
     m_flagHomingStart = true;
+    m_isSettling      = false;
 }
 
 void ServoL7NH::setTorque(int16_t torque)
@@ -264,6 +256,7 @@ void ServoL7NH::setTorque(int16_t torque)
     rxpdo->target_torque  = 1200;
 
     m_flagTorqueStart = true;
+    m_isSettling      = false;
 }
 
 const bool ServoL7NH::isRunning() const
@@ -285,12 +278,12 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
-        qDebug() << "[ServoL7NH::stateCheck] ecat state not op...";
+        qInfo() << "[ServoL7NH::stateCheck] ecat state not op...";
         // return;
     }
 
     if (rxpdo == nullptr || txpdo == nullptr) {
-        qDebug() << "[ServoL7NH::stateCheck] pdo is nullptr...";
+        qInfo() << "[ServoL7NH::stateCheck] pdo is nullptr...";
         return;
     }
 
@@ -330,7 +323,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         m_Status.errorCode = 0;
     }
 
-    qDebug() << "[ServoL7NH::stateCheck] servo state transitions...";
+    qInfo() << "[ServoL7NH::stateCheck] servo state transitions...";
 
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
@@ -352,7 +345,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
             // controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
             controlWord = cia402::CW_SHUTDOWN; // clear other bits
 
-            std::cout << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown" << std::endl;
+            qInfo() << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown";
         } else {
             // Enable operation
             controlWord = controlWord & bitF0 | cia402::CW_ENABLE_OP;
@@ -366,6 +359,12 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile position mode
+    static constexpr int8_t MODE_PP = static_cast<int8_t>(cia402::Mode::PP);
+    // operated mode should be already set to PP
+    if (rxpdo->mode != MODE_PP) {
+        return;
+    }
+
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
@@ -383,11 +382,32 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
         // flag off
         m_flagNewSetpoint = false;
     }
+
+    if (isInPosition(rxpdo, txpdo) && !m_isSettling) {
+        qInfo() << "[ServoL7NH::processPP] Target reached. Start settling check...";
+
+        m_isSettling            = true;
+        m_settlingTimeout       = SETTLING_TIMEOUT;
+        m_settlingStableCounter = 0;
+
+        return;
+    }
+
+    // Settling phase logic
+    if (m_isSettling) {
+        settling(rxpdo, txpdo);
+    }
 }
 
 void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile torque mode
+    static constexpr int8_t MODE_PT = static_cast<int8_t>(cia402::Mode::PT);
+    // operated mode should be already set to PT
+    if (rxpdo->mode != MODE_PT) {
+        return;
+    }
+
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
@@ -404,91 +424,101 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 {
-    // homing mode
-    static constexpr int HOMING_SETTLING_TIMEOUT = 5000;
-    static constexpr int HOMING_STABLE_COUNT     = 50;
+    // Homing mode
+    static constexpr int8_t MODE_HM = static_cast<int8_t>(cia402::Mode::HM);
+    // operated mode should be already set to HM
+    if (rxpdo->mode != MODE_HM) {
+        return;
+    }
 
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isHomingStart    = controlWord & cia402::CW_BIT_HOMING_START;
+    const bool isHomingStart    = controlWord & cia402::CW_BIT_NEW_SETPOINT;
     const bool isHomingAttained = statusWord & cia402::SW_BIT_HOMING_ATTAINED;
     const bool isHomingError    = statusWord & cia402::SW_BIT_HOMING_ERROR;
-    const bool isLimit          = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
 
+    // Homing error handling
     if (isHomingError) {
-        std::cout << "[ServoL7NH::processHM] homing error occurred!" << std::endl;
+        qInfo() << "[ServoL7NH::processHM] homing error occurred, try to restart homing...";
 
-        controlWord        &= ~(cia402::CW_BIT_HOMING_START);
-        m_flagHomingStart   = false;
-        m_isHomingSettling  = false;
+        // restart homing
+        controlWord       &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        m_flagHomingStart  = true;
+
         return;
     }
 
-    // 1. Homing start request
-    if (!isHomingStart && m_flagHomingStart) {
-        controlWord |= cia402::CW_BIT_HOMING_START;
-
+    // Homing start request, but not yet started
+    if (m_flagHomingStart && !isHomingStart) {
+        // start homing
+        controlWord       |= cia402::CW_BIT_NEW_SETPOINT;
         m_flagHomingStart  = false; // Reset homing flag
-        m_isHomingSettling = false; // Reset settling state on new homing start
+
         return;
     }
 
-    // 2. Homing processing
+    // Homing processing...
     if (isHomingStart) {
-        // limit test
-        if (isLimit) {
-            std::cout << "[ServoL7NH::processHM] LIMIT!!!!!" << std::endl;
-        }
+        // Homing Attained, enter settling phase
+        if (isHomingAttained && !m_isSettling) {
+            qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
 
-        // 2-1. Homing Attained, enter settling phase
-        if (isHomingAttained && !m_isHomingSettling) {
-            std::cout << "[ServoL7NH::processHM] Homing attained. Start settling check..." << std::endl;
-
-            m_isHomingSettling      = true;
-            m_homingSettlingTimeout = HOMING_SETTLING_TIMEOUT;
-            m_homingStableCounter   = 0;
+            m_isSettling            = true;
+            m_settlingTimeout       = SETTLING_TIMEOUT;
+            m_settlingStableCounter = 0;
 
             return;
         }
 
-        // 2-2. Settling phase logic
-        if (m_isHomingSettling) {
-            --m_homingSettlingTimeout; // Decrement timeout
-
-            // Update stable counter whether target is reached
-            m_homingStableCounter = isTargetReached(rxpdo, txpdo) ? m_homingStableCounter + 1 : 0;
-
-            // Success: Remained stable within the window for enough time
-            if (m_homingStableCounter >= HOMING_STABLE_COUNT) {
-                std::cout << "[ServoL7NH::processHM] Homing Succeeded (Stable in window)" << std::endl;
-
-                controlWord        &= ~(cia402::CW_BIT_HOMING_START);
-                m_isHomingSettling  = false;
-
-                // // return to 0
-                // setTargetPosition(0);
-
-                controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
-            }
-            // Failure: Timeout occurred before becoming stable
-            else if (m_homingSettlingTimeout <= 0) {
-                std::cout << "[ServoL7NH::processHM] Homing Failed (Timeout, not stable)" << std::endl;
-
-                controlWord        &= ~(cia402::CW_BIT_HOMING_START);
-                m_isHomingSettling  = false;
-            }
+        // Settling phase logic
+        if (m_isSettling) {
+            settling(rxpdo, txpdo);
         }
     }
 }
 
-const bool ServoL7NH::isTargetReached(RxPDO* rxpdo, const TxPDO* txpdo) const
+void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
+{
+    auto& controlWord = rxpdo->control_word;
+
+    --m_settlingTimeout; // Decrement timeout
+
+    // Update stable counter whether target is reached
+    m_settlingStableCounter = isInPosition(rxpdo, txpdo) ? m_settlingStableCounter + 1 : 0;
+
+    // Success: Remained stable within the window for enough time
+    if (m_settlingStableCounter >= SETTLING_STABLE_COUNT) {
+        qInfo() << "[ServoL7NH::settling] Settling Succeeded (Stable in window)";
+
+        // Reset mode
+        rxpdo->mode = 0;
+
+        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        m_isSettling  = false;
+
+        controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
+    }
+    // Failure: Timeout occurred before becoming stable
+    else if (m_settlingTimeout <= 0) {
+        qInfo() << "[ServoL7NH::settling] Settling Failed (Timeout, not stable)";
+
+        // Reset mode
+        rxpdo->mode = 0;
+
+        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        m_isSettling  = false;
+    }
+}
+
+const bool ServoL7NH::isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const
 {
     const int32_t targetPos = rxpdo->target_position;
     const int32_t actualPos = txpdo->actual_position;
 
-    const uint32_t posDiff = targetPos - actualPos;
+    const int32_t  posDiff = targetPos - actualPos;
+    const uint32_t absDiff = posDiff < 0 ? -posDiff : posDiff;
 
     // Check if within the position window
-    return -m_posWindow <= posDiff && posDiff <= m_posWindow;
+    return absDiff <= m_posWindow;
 }
