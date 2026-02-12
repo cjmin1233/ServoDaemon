@@ -46,7 +46,7 @@ bool EcatMaster::init(const std::string& ifname)
             m_ServoId = i;
 
             // setup PO2SOconfig function
-            slave.PO2SOconfig = &ServoL7NH::setupL7NH;
+            slave.PO2SOconfig = &ServoL7NH::setup;
 
             // create slave instance
             m_Slaves[i] = std::make_unique<ServoL7NH>(i);

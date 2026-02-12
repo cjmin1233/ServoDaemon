@@ -60,21 +60,19 @@ enum class Mode : int8_t {
 };
 
 // --- [4] Object Dictionary Index ---
-constexpr uint16_t IDX_CONTROL_WORD         = 0x6040;
-constexpr uint16_t IDX_STATUS_WORD          = 0x6041;
-constexpr uint16_t IDX_OP_MODE              = 0x6060;
-constexpr uint16_t IDX_OP_MODE_DISPLAY      = 0x6061;
-constexpr uint16_t IDX_TARGET_POSITION      = 0x607A;
-constexpr uint16_t IDX_TARGET_TORQUE        = 0x6071;
-constexpr uint16_t IDX_ACTUAL_POSITION      = 0x6064;
-constexpr uint16_t IDX_POSITION_WINDOW      = 0x6067;
-constexpr uint16_t IDX_PROFILE_VELOCITY     = 0x6081;
-constexpr uint16_t IDX_PROFILE_ACCEL        = 0x6083;
-constexpr uint16_t IDX_PROFILE_DECEL        = 0x6084;
-constexpr uint16_t IDX_STOP_DECEL           = 0x6085;
-constexpr uint16_t IDX_DIGITAL_INPUTS       = 0x60FD;
-constexpr uint16_t IDX_SPEED_LIMIT_FUNCTION = 0x230D;
-constexpr uint16_t IDX_SPEED_LIMIT_VALUE    = 0x230E;
+constexpr uint16_t IDX_CONTROL_WORD     = 0x6040;
+constexpr uint16_t IDX_STATUS_WORD      = 0x6041;
+constexpr uint16_t IDX_OP_MODE          = 0x6060;
+constexpr uint16_t IDX_OP_MODE_DISPLAY  = 0x6061;
+constexpr uint16_t IDX_TARGET_POSITION  = 0x607A;
+constexpr uint16_t IDX_TARGET_TORQUE    = 0x6071;
+constexpr uint16_t IDX_ACTUAL_POSITION  = 0x6064;
+constexpr uint16_t IDX_POSITION_WINDOW  = 0x6067;
+constexpr uint16_t IDX_PROFILE_VELOCITY = 0x6081;
+constexpr uint16_t IDX_PROFILE_ACCEL    = 0x6083;
+constexpr uint16_t IDX_PROFILE_DECEL    = 0x6084;
+constexpr uint16_t IDX_STOP_DECEL       = 0x6085;
+constexpr uint16_t IDX_DIGITAL_INPUTS   = 0x60FD;
 
 // Option codes
 constexpr uint16_t IDX_QUICK_STOP_OPTION = 0x605A;
@@ -82,10 +80,20 @@ constexpr uint16_t IDX_SHUTDOWN_OPTION   = 0x605B;
 constexpr uint16_t IDX_DISABLE_OPTION    = 0x605C;
 constexpr uint16_t IDX_HALT_OPTION       = 0x605D;
 
+// Homing
 constexpr uint16_t IDX_HOME_OFFSET   = 0x607C;
 constexpr uint16_t IDX_HOMING_METHOD = 0x6098;
 constexpr uint16_t IDX_HOMING_SPEED  = 0x6099;
 constexpr uint16_t IDX_HOMING_ACCEL  = 0x609A;
+
+// Torque
+constexpr uint16_t IDX_TORQUE_LIMIT_FUNCTION = 0x2110; // unsigned 16 bit
+constexpr uint16_t IDX_SPEED_LIMIT_FUNCTION  = 0x230D; // unsigned 16 bit
+constexpr uint16_t IDX_POSITIVE_TORQUE_LIMIT = 0x60E0; // unsigned 16 bit
+constexpr uint16_t IDX_NEGATIVE_TORQUE_LIMIT = 0x60E1; // unsigned 16 bit
+constexpr uint16_t IDX_TORQUE_SPEED_LIMIT    = 0x230E; // unsigned 16 bit
+constexpr uint16_t IDX_TORQUE_SLOPE          = 0x6087; // unsigned 32 bit
+constexpr uint16_t IDX_TORQUE_OFFSET         = 0x60B2; // signed 16 bit
 
 // --- [5] RxPDO Mapping Objects (Master -> Slave) ---
 // Defines the content of data sent from Master to Slave.

@@ -13,18 +13,55 @@ static constexpr int SETTLING_STABLE_COUNT = 50;
 
 bool ServoL7NH::checkL7NH(int slaveId)
 {
+    static constexpr uint32 manufacturer = 0x00007595;
+    static constexpr uint32 id           = 0x00010001;
+
     const auto& slave = ec_slave[slaveId];
-    return slave.eep_man == 0x00007595
-           && slave.eep_id == 0x00010001;
+
+    return slave.eep_man == manufacturer && slave.eep_id == id;
 }
 
-int ServoL7NH::setupL7NH(uint16 slaveId)
+int ServoL7NH::setup(uint16 slaveId)
 {
+    // Note) Current servo drive rotation direction(0x2004) should be set to 1(cw is positive)
+    // because of the NOT sensor position
     qInfo() << "[ServoL7NH::setupL7NH] Setup servo " << slaveId << " start";
 
     // Verify it's name starts with "L7NH"
     if (std::string(ec_slave[slaveId].name).find("L7NH") != 0) return 0;
 
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Set PDO mappings
+    success &= setupPDO(slaveId);
+
+    // Set position objects
+    success &= setupPosition(slaveId);
+
+    // Set homing objects
+    success &= setupHoming(slaveId);
+
+    // Setup torque objects
+    success &= setupTorque(slaveId);
+
+    // etc...
+    uint32_t posWindow      = s_encoderResolution / 200;
+    int16_t  stopOption     = 2;
+    int16_t  shutdownOption = 1;
+    int16_t  haltOption     = 2;
+
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, sizeof(posWindow), &posWindow, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, FALSE, sizeof(stopOption), &stopOption, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, FALSE, sizeof(shutdownOption), &shutdownOption, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_HALT_OPTION, 0, FALSE, sizeof(haltOption), &haltOption, EC_TIMEOUTRXM) > 0);
+
+    qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
+
+    return success;
+}
+
+int ServoL7NH::setupPDO(uint16 slaveId)
+{
     int success = 1; // SOEM callbacks expect 1 on success
 
     // --- [STEP 1] RXPDO Mapping Content (0x1600) ---
@@ -88,6 +125,14 @@ int ServoL7NH::setupL7NH(uint16 slaveId)
     entryCount  = 1;
     success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
 
+    return success;
+}
+
+int ServoL7NH::setupPosition(uint16 slaveId)
+{
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Set position objects
     uint32_t profileVel = s_encoderResolution;
     uint32_t profileAcc = s_encoderResolution * 2;
     uint32_t profileDec = s_encoderResolution * 2;
@@ -97,6 +142,13 @@ int ServoL7NH::setupL7NH(uint16 slaveId)
     success &= (ec_SDOwrite(slaveId, cia402::IDX_PROFILE_ACCEL, 0, FALSE, sizeof(profileAcc), &profileAcc, EC_TIMEOUTRXM) > 0);
     success &= (ec_SDOwrite(slaveId, cia402::IDX_PROFILE_DECEL, 0, FALSE, sizeof(profileDec), &profileDec, EC_TIMEOUTRXM) > 0);
     success &= (ec_SDOwrite(slaveId, cia402::IDX_STOP_DECEL, 0, FALSE, sizeof(stopDec), &stopDec, EC_TIMEOUTRXM) > 0);
+
+    return success;
+}
+
+int ServoL7NH::setupHoming(uint16 slaveId)
+{
+    int success = 1; // SOEM callbacks expect 1 on success
 
     // Set homing objects
     int32_t  homeOffset   = s_encoderResolution / 200;
@@ -112,19 +164,29 @@ int ServoL7NH::setupL7NH(uint16 slaveId)
     success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_SPEED, 2, FALSE, sizeof(spdZero), &spdZero, EC_TIMEOUTRXM) > 0);
 
     success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_ACCEL, 0, FALSE, sizeof(homingAcc), &homingAcc, EC_TIMEOUTRXM) > 0);
+    return success;
+}
 
-    // etc...
-    uint32_t posWindow      = s_encoderResolution / 200;
-    int16_t  stopOption     = 2;
-    int16_t  shutdownOption = 1;
-    int16_t  haltOption     = 2;
+int ServoL7NH::setupTorque(uint16 slaveId)
+{
+    int success = 1; // SOEM callbacks expect 1 on success
 
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, sizeof(posWindow), &posWindow, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, FALSE, sizeof(stopOption), &stopOption, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, FALSE, sizeof(shutdownOption), &shutdownOption, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HALT_OPTION, 0, FALSE, sizeof(haltOption), &haltOption, EC_TIMEOUTRXM) > 0);
+    // Setup torque objects
+    uint16_t torqueLimitFunc  = 2;
+    uint16_t speedLimitFunc   = 0;
+    uint16_t posTorqueLimit   = 3000;
+    uint16_t negTorqueLimit   = 3000;
+    uint16_t torqueSpeedLimit = 1000;
+    uint32_t torqueSlope      = 1000;
+    int16_t  torqueOffset     = 0;
 
-    qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_LIMIT_FUNCTION, 0, FALSE, sizeof(torqueLimitFunc), &torqueLimitFunc, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_SPEED_LIMIT_FUNCTION, 0, FALSE, sizeof(speedLimitFunc), &speedLimitFunc, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_POSITIVE_TORQUE_LIMIT, 0, FALSE, sizeof(posTorqueLimit), &posTorqueLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_NEGATIVE_TORQUE_LIMIT, 0, FALSE, sizeof(negTorqueLimit), &negTorqueLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_SPEED_LIMIT, 0, FALSE, sizeof(torqueSpeedLimit), &torqueSpeedLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_SLOPE, 0, FALSE, sizeof(torqueSlope), &torqueSlope, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_OFFSET, 0, FALSE, sizeof(torqueOffset), &torqueOffset, EC_TIMEOUTRXM) > 0);
 
     return success;
 }
@@ -255,8 +317,7 @@ void ServoL7NH::setTorque(int16_t torque)
     rxpdo->control_word  &= ~(cia402::CW_BIT_HALT); // Clear halt bit
     rxpdo->target_torque  = 1200;
 
-    m_flagTorqueStart = true;
-    m_isSettling      = false;
+    m_isSettling = false;
 }
 
 const bool ServoL7NH::isRunning() const

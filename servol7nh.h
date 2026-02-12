@@ -44,7 +44,11 @@ public:
     virtual void stop() override;
 
     static bool checkL7NH(int slaveId);
-    static int  setupL7NH(uint16 slaveId);
+    static int  setup(uint16 slaveId);
+    static int  setupPDO(uint16 slaveId);
+    static int  setupPosition(uint16 slaveId);
+    static int  setupHoming(uint16 slaveId);
+    static int  setupTorque(uint16 slaveId);
 
     void setTargetPosition(float ratio);
     void setTargetPosition(int32_t pos);
@@ -72,7 +76,6 @@ private:
 
     bool m_flagNewSetpoint = false;
     bool m_flagHomingStart = false;
-    bool m_flagTorqueStart = false;
 
     int m_stateCheckCounter = 0;
 
