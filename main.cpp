@@ -1,6 +1,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QSharedMemory>
+#include <QSystemSemaphore>
 
 #include "../CommonConfig.h"
 #include "ecatserver.h"
@@ -44,6 +46,13 @@ int main(int argc, char* argv[])
 #endif
 
     QCoreApplication a(argc, argv);
+
+    // // Check for another instance using QSharedMemory
+    // QSharedMemory sharedMemory("ServoDaemon_Instance");
+    // if (!sharedMemory.create(1)) {
+    //     qCritical() << "Another instance of ServoDaemon is already running";
+    //     return -1; // Exit if another instance is found
+    // }
 
     qDebug() << "---------- Servo Daemon Started ----------";
 

@@ -5,10 +5,11 @@
 
 EcatManager::EcatManager(QObject* parent)
     : QObject { parent }
-    , m_Master()
+    // , EcatMaster::instance()()
     , m_ifname("") // TODO: Get from config
 // , m_ifname("\\Device\\NPF_{F80FCB79-A945-4A5A-BD77-B5076391E949}") // TODO: Get from config
 {
+    // qDebug() << "[TEST] master instance : " << EcatMaster::instance();
 }
 
 EcatManager::~EcatManager()
@@ -19,7 +20,7 @@ EcatManager::~EcatManager()
 bool EcatManager::connectMaster()
 {
     // try to connect with previous ifname first
-    if (!m_ifname.isEmpty() && m_Master.isAdapterValid(m_ifname.toStdString())) {
+    if (!m_ifname.isEmpty() && EcatMaster::instance().isAdapterValid(m_ifname.toStdString())) {
         return connectMaster(m_ifname);
     }
 
@@ -38,13 +39,13 @@ bool EcatManager::connectMaster()
 bool EcatManager::connectMaster(const QString& ifname)
 {
     // init to op state. return false if failed
-    if (!m_Master.init(ifname.toStdString())) {
+    if (!EcatMaster::instance().init(ifname.toStdString())) {
         qWarning() << "[EcatManager::connectMaster] EtherCAT init failed";
         return false;
     }
 
     // start process loop and error handler threads. return false if failed
-    if (!m_Master.start()) {
+    if (!EcatMaster::instance().start()) {
         qWarning() << "[EcatManager::connectMaster] EtherCAT start failed";
         return false;
     }
@@ -76,22 +77,22 @@ void EcatManager::disconnectMaster()
     qDebug() << "[EcatManager::disconnectMaster]";
 
     // stop to terminate threads, reset init state
-    m_Master.stop();
+    EcatMaster::instance().stop();
 }
 
 void EcatManager::launchServoMove(float ratio)
 {
-    m_Master.servoMovePosition(ratio);
+    EcatMaster::instance().servoMovePosition(ratio);
 }
 
 void EcatManager::setHome()
 {
-    m_Master.setHome();
+    EcatMaster::instance().setHome();
 }
 
 void EcatManager::setTorque()
 {
-    m_Master.setTorque();
+    EcatMaster::instance().setTorque();
 }
 
 // search for a valid EtherCAT adapter and update m_ifname
@@ -107,7 +108,7 @@ void EcatManager::searchValidAdapter()
     while (current != nullptr) {
         // qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
 
-        if (m_Master.isAdapterValid(current->name)) {
+        if (EcatMaster::instance().isAdapterValid(current->name)) {
             m_ifname = current->name;
             qInfo() << "[EcatManager::searchValidAdapter] Found valid adapter, updated ifname to:" << m_ifname;
 

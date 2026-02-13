@@ -46,7 +46,10 @@ bool EcatMaster::init(const std::string& ifname)
             m_ServoId = i;
 
             // setup PO2SOconfig function
-            slave.PO2SOconfig = &ServoL7NH::setup;
+            // slave.PO2SOconfig = &ServoL7NH::setup;
+            slave.PO2SOconfig = [](uint16 slaveId) -> int {
+                return EcatMaster::instance().setupSlave(slaveId);
+            };
 
             // create slave instance
             m_Slaves[i] = std::make_unique<ServoL7NH>(i);
@@ -62,6 +65,14 @@ bool EcatMaster::init(const std::string& ifname)
     std::cout << "[EcatMaster::init] Slaves mapped, state to SAFE_OP" << std::endl;
 
     ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTCONFIG);
+
+    if (ec_slave[0].state != EC_STATE_SAFE_OP) {
+        std::cout << "[EcatMaster::init] Failed to reach SAFE_OP state" << std::endl;
+
+        ec_close();
+        m_Initialized = false; // reset init flag
+        return false;
+    }
 
     // calculate expected WKC
     m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
@@ -90,6 +101,9 @@ bool EcatMaster::start()
     // start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
+
+        // // TEST
+        // if (i > 1) continue;
 
         m_Slaves[i]->start();
     }
@@ -224,6 +238,9 @@ void EcatMaster::processLoop()
         for (int i = 1; i <= ec_slavecount; ++i) {
             if (m_Slaves[i] == nullptr) continue;
 
+            // // TEST
+            // if (i > 1) continue;
+
             m_Slaves[i]->processData();
         }
 
@@ -255,6 +272,16 @@ bool EcatMaster::reqOpState()
     // check if all slaves are in OP state
     if (ec_slave[0].state != EC_STATE_OPERATIONAL) {
         std::cout << "[EcatMaster::reqOpState] Failed to reach OP state" << std::endl;
+        // read all slave states to get AL status codes
+        ec_readstate();
+        for (int i = 1; i <= ec_slavecount; i++) {
+            if (ec_slave[i].state != EC_STATE_OPERATIONAL) {
+                std::cout << "  - Slave " << i << " State=" << ec_slave[i].state
+                          << " ALStatusCode=" << std::hex << ec_slave[i].ALstatuscode
+                          << " (" << ec_ALstatuscode2string(ec_slave[i].ALstatuscode) << ")"
+                          << std::dec << std::endl;
+            }
+        }
         return false;
     }
 

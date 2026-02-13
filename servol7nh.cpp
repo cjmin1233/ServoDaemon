@@ -21,6 +21,150 @@ bool ServoL7NH::checkL7NH(int slaveId)
     return slave.eep_man == manufacturer && slave.eep_id == id;
 }
 
+int ServoL7NH::setupPDO()
+{
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // --- [STEP 1] RXPDO Mapping Content (0x1600) ---
+    uint16_t rxpdoIndex = cia402::IDX_RXPDO_MAPPING_1;
+    uint8_t  zero       = 0;
+
+    // Set mapping count to 0 to clear existing mappings
+    success &= (ec_SDOwrite(m_slaveId, rxpdoIndex, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+
+    uint32_t rxpdoEntries[] = {
+        cia402::ENTRY_RX_CONTROL_WORD,
+        cia402::ENTRY_RX_MODES_OF_OP,
+        cia402::ENTRY_RX_TARGET_POSITION,
+        cia402::ENTRY_RX_TARGET_VELOCITY,
+        cia402::ENTRY_RX_TARGET_TORQUE,
+        cia402::ENTRY_RX_DIGITAL_OUTPUTS,
+    };
+    uint8_t                  entryCount  = sizeof(rxpdoEntries) / sizeof(rxpdoEntries[0]);
+    static constexpr uint8_t pdoCountMax = 10; // maximum 10 pdo entries available
+    if (entryCount > pdoCountMax) {
+        qCritical() << "[ServoL7NH::setupPDO] Too many RXPDO entries:" << static_cast<int>(entryCount);
+
+        return 0;
+    }
+
+    for (uint8_t i = 0; i < entryCount; ++i) {
+        // Write each mapping entry
+        success &= (ec_SDOwrite(m_slaveId, rxpdoIndex, i + 1, FALSE, sizeof(rxpdoEntries[i]), &rxpdoEntries[i], EC_TIMEOUTRXM) > 0);
+    }
+    // Finalize the mapping count
+    success &= (ec_SDOwrite(m_slaveId, rxpdoIndex, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+
+    // --- [STEP 2] TXPDO Mapping Content (0x1A00) ---
+    uint16_t txpdoIndex = cia402::IDX_TXPDO_MAPPING_1;
+
+    // same as rxpdo: clear existing mappings first
+    success &= (ec_SDOwrite(m_slaveId, txpdoIndex, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+
+    uint32_t txpdoEntries[] = {
+        cia402::ENTRY_TX_STATUS_WORD,
+        cia402::ENTRY_TX_MODES_OF_OP_DISP,
+        cia402::ENTRY_TX_ACTUAL_POSITION,
+        cia402::ENTRY_TX_ACTUAL_VELOCITY,
+        cia402::ENTRY_TX_ACTUAL_TORQUE,
+        cia402::ENTRY_TX_POSITION_WINDOW,
+        cia402::ENTRY_TX_DIGITAL_INPUTS,
+        cia402::ENTRY_TX_ERROR_CODE,
+    };
+    entryCount = sizeof(txpdoEntries) / sizeof(txpdoEntries[0]);
+    if (entryCount > pdoCountMax) {
+        qCritical() << "[ServoL7NH::setupPDO] Too many TXPDO entries:" << static_cast<int>(entryCount);
+
+        return 0;
+    }
+
+    for (uint8_t i = 0; i < entryCount; ++i) {
+        // Write each mapping entry
+        success &= (ec_SDOwrite(m_slaveId, txpdoIndex, i + 1, FALSE, sizeof(txpdoEntries[i]), &txpdoEntries[i], EC_TIMEOUTRXM) > 0);
+    }
+    // Finalize the mapping count
+    success &= (ec_SDOwrite(m_slaveId, txpdoIndex, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+
+    // --- [STEP 3] Sync Manager 2 (RxPDO) & 3 (TxPDO) Assignment ---
+    // RxPDO
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 1, FALSE, sizeof(rxpdoIndex), &rxpdoIndex, EC_TIMEOUTRXM) > 0);
+    entryCount  = 1;
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+
+    // TxPDO
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 1, FALSE, sizeof(txpdoIndex), &txpdoIndex, EC_TIMEOUTRXM) > 0);
+    entryCount  = 1;
+    success    &= (ec_SDOwrite(m_slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+
+    return success;
+}
+
+int ServoL7NH::setupPos()
+{
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Set position objects
+    uint32_t profileVel = m_encoderPPR;
+    uint32_t profileAcc = m_encoderPPR * 2;
+    uint32_t profileDec = m_encoderPPR * 2;
+    uint32_t stopDec    = m_encoderPPR * 10;
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_PROFILE_VELOCITY, 0, FALSE, sizeof(profileVel), &profileVel, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_PROFILE_ACCEL, 0, FALSE, sizeof(profileAcc), &profileAcc, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_PROFILE_DECEL, 0, FALSE, sizeof(profileDec), &profileDec, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_STOP_DECEL, 0, FALSE, sizeof(stopDec), &stopDec, EC_TIMEOUTRXM) > 0);
+
+    return success;
+}
+
+int ServoL7NH::setupHome()
+{
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Set homing objects
+    int32_t  homeOffset   = m_encoderPPR / 200;
+    int8_t   homingMethod = cia402::HM_NEG_LIMIT_SWITCH_AND_INDEX;
+    uint32_t spdSwitch    = m_encoderPPR;
+    uint32_t spdZero      = m_encoderPPR / 10;
+    uint32_t homingAcc    = m_encoderPPR * 2;
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HOME_OFFSET, 0, FALSE, sizeof(homeOffset), &homeOffset, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HOMING_METHOD, 0, FALSE, sizeof(homingMethod), &homingMethod, EC_TIMEOUTRXM) > 0);
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HOMING_SPEED, 1, FALSE, sizeof(spdSwitch), &spdSwitch, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HOMING_SPEED, 2, FALSE, sizeof(spdZero), &spdZero, EC_TIMEOUTRXM) > 0);
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HOMING_ACCEL, 0, FALSE, sizeof(homingAcc), &homingAcc, EC_TIMEOUTRXM) > 0);
+    return success;
+}
+
+int ServoL7NH::setupTorque()
+{
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Setup torque objects
+    uint16_t torqueLimitFunc  = 2;
+    uint16_t speedLimitFunc   = 0;
+    uint16_t posTorqueLimit   = 3000;
+    uint16_t negTorqueLimit   = 3000;
+    uint16_t torqueSpeedLimit = 1000;
+    uint32_t torqueSlope      = 1000;
+    int16_t  torqueOffset     = 0;
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_TORQUE_LIMIT_FUNCTION, 0, FALSE, sizeof(torqueLimitFunc), &torqueLimitFunc, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_SPEED_LIMIT_FUNCTION, 0, FALSE, sizeof(speedLimitFunc), &speedLimitFunc, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_POSITIVE_TORQUE_LIMIT, 0, FALSE, sizeof(posTorqueLimit), &posTorqueLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_NEGATIVE_TORQUE_LIMIT, 0, FALSE, sizeof(negTorqueLimit), &negTorqueLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_TORQUE_SPEED_LIMIT, 0, FALSE, sizeof(torqueSpeedLimit), &torqueSpeedLimit, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_TORQUE_SLOPE, 0, FALSE, sizeof(torqueSlope), &torqueSlope, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_TORQUE_OFFSET, 0, FALSE, sizeof(torqueOffset), &torqueOffset, EC_TIMEOUTRXM) > 0);
+
+    return success;
+}
+
+#if 0
 int ServoL7NH::setup(uint16 slaveId)
 {
     // Note) Current servo drive rotation direction(0x2004) should be set to 1(cw is positive)
@@ -190,6 +334,32 @@ int ServoL7NH::setupTorque(uint16 slaveId)
 
     return success;
 }
+#endif
+
+ServoL7NH::ServoL7NH(uint16_t slaveId)
+    : Slave(slaveId)
+{
+}
+
+void ServoL7NH::setNone()
+{
+    RxPDO* rxpdo = ptrRxPDO();
+
+    if (rxpdo == nullptr) return;
+
+    rxpdo->mode             = 0;                              // Set to mode None
+    rxpdo->target_position  = 0;                              // Set target position 0
+    rxpdo->target_torque    = 0;                              // Clear target torque
+    rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);      // Absolute move
+    rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT); // Clear homing start bit
+
+    // rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);         // Clear halt bit
+    rxpdo->control_word |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
+
+    m_flagHomingStart = false;
+    m_flagNewSetpoint = false;
+    m_isSettling      = false;
+}
 
 void ServoL7NH::processData()
 {
@@ -245,11 +415,67 @@ void ServoL7NH::processData()
     }
 }
 
+int ServoL7NH::setup()
+{
+    qInfo() << "[ServoL7NH::setup] Setup servo " << m_slaveId << " start";
+
+    int success = 1; // SOEM callbacks expect 1 on success
+
+    // Note) Current servo drive rotation direction(0x2004) should be set to 1(cw is positive)
+    // because of the NOT sensor position
+
+    // Read encoder ppr(pulse per revolution)
+    int psize = sizeof(m_encoderPPR);
+    ec_SDOread(m_slaveId, cia402::IDX_ENCODER_PPR, 0, FALSE, &psize, &m_encoderPPR, EC_TIMEOUTRXM);
+    // // Read position window
+    // ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
+
+    if (m_encoderPPR == 0) {
+        qCritical() << "[ServoL7NH::setup] Encoder ppr not read";
+        return 0;
+    }
+    // if (m_posWindow == 0) {
+    //     qCritical() << "[ServoL7NH::setup] Position window not read";
+    //     return 0;
+    // }
+
+    // Verify it's name starts with "L7NH"
+    if (std::string(ec_slave[m_slaveId].name).find("L7NH") != 0) return 0;
+
+    // Set PDO mappings
+    success &= setupPDO();
+
+    // Set position objects
+    success &= setupPos();
+
+    // Set homing objects
+    success &= setupHome();
+
+    // Setup torque objects
+    success &= setupTorque();
+
+    // etc...
+    uint32_t posWindow  = getEncoderPPR() / 200;
+    success            &= (ec_SDOwrite(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, sizeof(posWindow), &posWindow, EC_TIMEOUTRXM) > 0);
+
+    int16_t stopOption     = 2;
+    int16_t shutdownOption = 1;
+    int16_t haltOption     = 2;
+
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, FALSE, sizeof(stopOption), &stopOption, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, FALSE, sizeof(shutdownOption), &shutdownOption, EC_TIMEOUTRXM) > 0);
+    success &= (ec_SDOwrite(m_slaveId, cia402::IDX_HALT_OPTION, 0, FALSE, sizeof(haltOption), &haltOption, EC_TIMEOUTRXM) > 0);
+
+    qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
+
+    return success;
+}
+
 void ServoL7NH::start()
 {
-    int psize = sizeof(m_posWindow);
-    // read position window setting
-    ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
+    // int psize = sizeof(m_posWindow);
+    // // read position window setting
+    // ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
 
     // start command: homing mode
     setHome();
@@ -266,14 +492,15 @@ void ServoL7NH::stop()
 
 void ServoL7NH::setTargetPosition(float ratio)
 {
-    static constexpr int32_t maxPosition = s_encoderResolution * 4;
+    // static constexpr int32_t maxPosition = s_encoderResolution * 4;
+    const int32_t maxPosition = getEncoderPPR() * 4;
 
     int32_t pos = static_cast<int32_t>(ratio * (maxPosition));
 
     setTargetPosition(pos);
 }
 
-void ServoL7NH::setTargetPosition(int32_t pos)
+void ServoL7NH::setTargetPosition(int32_t pos) // TODO: uint32_t
 {
     RxPDO* rxpdo = ptrRxPDO();
 
@@ -553,33 +780,46 @@ void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
         qInfo() << "[ServoL7NH::settling] Settling Succeeded (Stable in window)";
 
         // Reset mode
-        rxpdo->mode = 0;
+        setNone();
+        // rxpdo->mode = 0;
 
-        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
-        m_isSettling  = false;
+        // controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        // m_isSettling  = false;
 
-        controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
+        // controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
     }
     // Failure: Timeout occurred before becoming stable
     else if (m_settlingTimeout <= 0) {
         qInfo() << "[ServoL7NH::settling] Settling Failed (Timeout, not stable)";
 
         // Reset mode
-        rxpdo->mode = 0;
+        setNone();
+        // // Reset mode
+        // rxpdo->mode = 0;
 
-        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
-        m_isSettling  = false;
+        // controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        // m_isSettling  = false;
     }
 }
 
 const bool ServoL7NH::isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const
 {
-    const int32_t targetPos = rxpdo->target_position;
-    const int32_t actualPos = txpdo->actual_position;
+    const uint32_t posWindow = txpdo->position_window;
+    // const uint32_t posWindow = getEncoderPPR() / 200;
 
-    const int32_t  posDiff = targetPos - actualPos;
+    const int32_t  posDiff = rxpdo->target_position - txpdo->actual_position;
     const uint32_t absDiff = posDiff < 0 ? -posDiff : posDiff;
 
     // Check if within the position window
-    return absDiff <= m_posWindow;
+    return absDiff <= posWindow;
 }
+
+// void ServoL7NH::setEncoderPPR(uint32_t ppr)
+// {
+//     if (m_encoderPPR != 0) {
+//         qWarning() << "[] encoderPPR is already initialized and cannot be changed";
+//         return;
+//     }
+
+//     m_encoderPPR = ppr;
+// }

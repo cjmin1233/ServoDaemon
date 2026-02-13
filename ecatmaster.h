@@ -18,7 +18,14 @@ class ServoL7NH;
 
 class EcatMaster {
 public:
-    EcatMaster() = default;
+    // Singleton
+    static EcatMaster& instance()
+    {
+        static EcatMaster instance;
+        return instance;
+    }
+
+    // EcatMaster() = default;
     ~EcatMaster()
     {
         if (m_Running) {
@@ -27,6 +34,7 @@ public:
     }
 
     bool init(const std::string& ifname);
+    int  setupSlave(uint16_t slaveId) { return m_Slaves[slaveId]->setup(); }
     bool start();
     void stop();
 
@@ -70,6 +78,11 @@ private:
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
 
     int m_ServoId = 0;
+
+private:
+    EcatMaster()                             = default;
+    EcatMaster(const EcatMaster&)            = delete;
+    EcatMaster& operator=(const EcatMaster&) = delete;
 };
 
 #endif // ECATMASTER_H
