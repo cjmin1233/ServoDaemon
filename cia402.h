@@ -60,21 +60,23 @@ enum class Mode : int8_t {
 };
 
 // --- [4] Object Dictionary Index ---
-constexpr uint16_t IDX_CONTROL_WORD     = 0x6040;
-constexpr uint16_t IDX_STATUS_WORD      = 0x6041;
-constexpr uint16_t IDX_OP_MODE          = 0x6060;
-constexpr uint16_t IDX_OP_MODE_DISPLAY  = 0x6061;
-constexpr uint16_t IDX_TARGET_POSITION  = 0x607A;
-constexpr uint16_t IDX_TARGET_TORQUE    = 0x6071;
-constexpr uint16_t IDX_ACTUAL_POSITION  = 0x6064;
-constexpr uint16_t IDX_POSITION_WINDOW  = 0x6067;
-constexpr uint16_t IDX_PROFILE_VELOCITY = 0x6081;
-constexpr uint16_t IDX_PROFILE_ACCEL    = 0x6083;
-constexpr uint16_t IDX_PROFILE_DECEL    = 0x6084;
-constexpr uint16_t IDX_STOP_DECEL       = 0x6085;
-constexpr uint16_t IDX_DIGITAL_INPUTS   = 0x60FD;
-constexpr uint16_t IDX_GEAR_RATIO       = 0x6091; // SubIndex 1: Motor revolutions, SubIndex 2: Shaft revolutions -> unsigned 32 bit
-constexpr uint16_t IDX_POSITION_LIMIT   = 0x607D; // SubIndex 1: Min limit, SubIndex 2: Max limit
+constexpr uint16_t IDX_CONTROL_WORD       = 0x6040;
+constexpr uint16_t IDX_STATUS_WORD        = 0x6041;
+constexpr uint16_t IDX_OP_MODE            = 0x6060;
+constexpr uint16_t IDX_OP_MODE_DISPLAY    = 0x6061;
+constexpr uint16_t IDX_TARGET_POSITION    = 0x607A;
+constexpr uint16_t IDX_TARGET_TORQUE      = 0x6071;
+constexpr uint16_t IDX_ACTUAL_POSITION    = 0x6064;
+constexpr uint16_t IDX_POSITION_WINDOW    = 0x6067;
+constexpr uint16_t IDX_PROFILE_VELOCITY   = 0x6081;
+constexpr uint16_t IDX_PROFILE_ACCEL      = 0x6083;
+constexpr uint16_t IDX_PROFILE_DECEL      = 0x6084;
+constexpr uint16_t IDX_STOP_DECEL         = 0x6085;
+constexpr uint16_t IDX_DIGITAL_INPUTS     = 0x60FD;
+constexpr uint16_t IDX_GEAR_RATIO         = 0x6091; // SubIndex 1: Motor revolutions, SubIndex 2: Shaft revolutions -> unsigned 32 bit
+constexpr uint16_t IDX_POSITION_LIMIT     = 0x607D; // SubIndex 1: Min limit, SubIndex 2: Max limit
+constexpr uint16_t IDX_POS_COMMAND_FILTER = 0x2109; // unsigned 16 bit, 0 to 10'000, default 0, 0.1ms, rw
+constexpr uint16_t IDX_POS_LIMIT_FUNCTION = 0x2400; // unsigned 16 bit, 0 to 3, default 0, rw
 
 // Option codes
 constexpr uint16_t IDX_QUICK_STOP_OPTION = 0x605A;

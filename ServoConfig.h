@@ -6,10 +6,12 @@
 namespace ServoConfig {
 struct ServoParams {
     // --- [1] Profile Position Mode (PP) ---
-    uint32_t profileVelocity; // 0x6081
-    uint32_t profileAccel;    // 0x6083
-    uint32_t profileDecel;    // 0x6084
-    uint32_t stopDecel;       // 0x6085
+    uint32_t profileVelocity;  // 0x6081
+    uint32_t profileAccel;     // 0x6083
+    uint32_t profileDecel;     // 0x6084
+    uint32_t stopDecel;        // 0x6085
+    uint16_t posCommandFilter; // 0x2109
+    uint16_t posLimitFunc;     // 0x2400
 
     // --- [2] Homing Mode (HM) ---
     int32_t  homeOffset;      // 0x607C
@@ -47,19 +49,19 @@ const ServoParams SlaveConfigs[] = {
     {}, // Index 0(Dummy)
     {
      // Servo 1
-        ppr[1], ppr[1] * 2, ppr[1] * 2, ppr[1] * 10, // PP: Vel, Acc, Dec, StopDec
-        0, 1, ppr[1], ppr[1] / 10, ppr[1] * 2,       // HM: Offset, Method, Spd1, Spd2, Acc
-        2, 0, 3'000, 3'000, 100, 1'000, 0,           // PT: Torque settings
-        ppr[1] / 200, 2, 1, 2,                       // etc
-        ppr[1], 10, 1, 5, 200,                       // Mechanical Specs
+        ppr[1], ppr[1] * 2, ppr[1] * 2, ppr[1] * 10, 5000, 3, // PP: Vel, Acc, Dec, StopDec, etc
+        0, 1, ppr[1], ppr[1] / 10, ppr[1] * 2,                // HM: Offset, Method, Spd1, Spd2, Acc
+        2, 0, 3'000, 3'000, 100, 1'000, 0,                    // PT: Torque settings
+        ppr[1] / 200, 2, 1, 2,                                // etc
+        ppr[1], 10, 1, 5, 200,                                // Mechanical Specs
     },
     {
      // Servo 2
-        ppr[2], ppr[2] * 2, ppr[2] * 2, ppr[2] * 10, // PP: Vel, Acc, Dec, StopDec
-        0, 1, ppr[2], ppr[2] / 10, ppr[2] * 2,       // HM: Offset, Method, Spd1, Spd2, Acc
-        2, 0, 3'000, 3'000, 100, 1'000, 0,           // PT: Torque settings
-        ppr[2] / 200, 2, 1, 2,                       // etc
-        ppr[2], 10, 1, 10, 300,                      // Mechanical Specs
+        ppr[2], ppr[2] * 2, ppr[2] * 2, ppr[2] * 10, 5000, 3, // PP: Vel, Acc, Dec, StopDec, etc
+        0, 1, ppr[2], ppr[2] / 10, ppr[2] * 2,                // HM: Offset, Method, Spd1, Spd2, Acc
+        2, 0, 3'000, 3'000, 100, 1'000, 0,                    // PT: Torque settings
+        ppr[2] / 200, 2, 1, 2,                                // etc
+        ppr[2], 10, 1, 10, 300,                               // Mechanical Specs
     },
 };
 }

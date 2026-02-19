@@ -59,7 +59,7 @@ uint32_t calcPulsePerMm(int slaveId)
     return cfg.encoderPPR / (gearRatio * cfg.leadMm);
 }
 
-uint32_t calcPosLimit(int slaveId)
+int32_t calcPosLimit(int slaveId)
 {
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
@@ -199,6 +199,8 @@ int ServoL7NH::setupPosition(uint16 slaveId)
     success &= sdoWrite(slaveId, cia402::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
     success &= sdoWrite(slaveId, cia402::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
     success &= sdoWrite(slaveId, cia402::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
+    success &= sdoWrite(slaveId, cia402::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
+    success &= sdoWrite(slaveId, cia402::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
 
     return success;
 }
@@ -323,7 +325,7 @@ void ServoL7NH::setTargetPosition(float ratio)
     // static constexpr int32_t maxPosition = 262'144 * 4;
     // const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
 
-    int32_t pos = static_cast<int32_t>(ratio * (m_posLimit));
+    int32_t pos = m_posLimit * ratio;
 
     setTargetPosition(pos);
 }

@@ -88,7 +88,7 @@ private:
     ServoStatus m_Status = {};
 
     int32_t  m_posLimit   = 0;
-    uint32_t m_pulsePerMm = 0.0;
+    uint32_t m_pulsePerMm = 0;
 };
 
 #endif // SERVOL7NH_H
