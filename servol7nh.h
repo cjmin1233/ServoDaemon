@@ -72,7 +72,7 @@ private:
     const TxPDO* ptrTxPDO() const { return reinterpret_cast<const TxPDO*>(ec_slave[m_slaveId].inputs); }
 
 private:
-    static constexpr uint32_t s_encoderResolution = 262'144;
+    // static constexpr uint32_t s_encoderResolution = 262'144;
 
     bool m_flagNewSetpoint = false;
     bool m_flagHomingStart = false;
@@ -86,6 +86,9 @@ private:
     uint32_t m_posWindow             = 0;
 
     ServoStatus m_Status = {};
+
+    int32_t  m_posLimit   = 0;
+    uint32_t m_pulsePerMm = 0.0;
 };
 
 #endif // SERVOL7NH_H

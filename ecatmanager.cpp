@@ -6,8 +6,7 @@
 EcatManager::EcatManager(QObject* parent)
     : QObject { parent }
     , m_Master()
-    , m_ifname("") // TODO: Get from config
-// , m_ifname("\\Device\\NPF_{F80FCB79-A945-4A5A-BD77-B5076391E949}") // TODO: Get from config
+    , m_ifname()
 {
 }
 

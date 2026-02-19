@@ -73,6 +73,8 @@ constexpr uint16_t IDX_PROFILE_ACCEL    = 0x6083;
 constexpr uint16_t IDX_PROFILE_DECEL    = 0x6084;
 constexpr uint16_t IDX_STOP_DECEL       = 0x6085;
 constexpr uint16_t IDX_DIGITAL_INPUTS   = 0x60FD;
+constexpr uint16_t IDX_GEAR_RATIO       = 0x6091; // SubIndex 1: Motor revolutions, SubIndex 2: Shaft revolutions -> unsigned 32 bit
+constexpr uint16_t IDX_POSITION_LIMIT   = 0x607D; // SubIndex 1: Min limit, SubIndex 2: Max limit
 
 // Option codes
 constexpr uint16_t IDX_QUICK_STOP_OPTION = 0x605A;

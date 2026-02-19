@@ -12,6 +12,7 @@
 static constexpr int SETTLING_TIMEOUT      = 5000;
 static constexpr int SETTLING_STABLE_COUNT = 50;
 
+// --- utility functions ---
 /**
  * @brief Simplified wrapper for ec_SDOwrite using C++ templates.
  * * Automatically determines data size using sizeof(T) and handles logging.
@@ -48,6 +49,24 @@ int sdoWrite(uint16 slaveId, uint16 index, uint8 subIndex, T value, const char* 
     }
 }
 
+uint32_t calcPulsePerMm(int slaveId)
+{
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
+
+    // calculate pulse per mm
+    uint32_t gearRatio = cfg.motorRevolutions / cfg.shaftRevolutions;
+
+    return cfg.encoderPPR / (gearRatio * cfg.leadMm);
+}
+
+uint32_t calcPosLimit(int slaveId)
+{
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
+
+    return cfg.strokeMm * calcPulsePerMm(slaveId);
+}
+// -------------------------
+
 bool ServoL7NH::checkL7NH(int slaveId)
 {
     static constexpr uint32 manufacturer = 0x00007595;
@@ -62,7 +81,7 @@ int ServoL7NH::setup(uint16 slaveId)
 {
     // Note) Current servo drive rotation direction(0x2004) should be set to 1(cw is positive)
     // because of the NOT sensor position
-    qInfo() << "[ServoL7NH::setupL7NH] Setup servo " << slaveId << " start";
+    qInfo() << "[ServoL7NH::setup] Setup servo " << slaveId << " start";
 
     // Verify it's name starts with "L7NH"
     if (std::string(ec_slave[slaveId].name).find("L7NH") != 0) return 0;
@@ -89,7 +108,14 @@ int ServoL7NH::setup(uint16 slaveId)
     success &= sdoWrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
     success &= sdoWrite(slaveId, cia402::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
 
-    qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
+    int32_t posLimitMax  = calcPosLimit(slaveId);
+    success             &= sdoWrite(slaveId, cia402::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
+
+    // Mechanical Specs
+    success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
+    success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
+
+    qInfo() << "[ServoL7NH::setup] Result: " << (success ? "Success" : "Failed");
 
     return success;
 }
@@ -267,9 +293,17 @@ void ServoL7NH::processData()
 
 void ServoL7NH::start()
 {
-    int psize = sizeof(m_posWindow);
-    // read position window setting
-    ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
+    // int psize = sizeof(m_posWindow);
+    // // read position window setting
+    // ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
+
+    const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
+
+    m_posWindow = cfg.positionWindow;
+
+    // calculate pulse per mm, limit
+    m_pulsePerMm = calcPulsePerMm(m_slaveId);
+    m_posLimit   = calcPosLimit(m_slaveId);
 
     // start command: homing mode
     setHome();
@@ -286,9 +320,10 @@ void ServoL7NH::stop()
 
 void ServoL7NH::setTargetPosition(float ratio)
 {
-    static constexpr int32_t maxPosition = s_encoderResolution * 4;
+    // static constexpr int32_t maxPosition = 262'144 * 4;
+    // const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
 
-    int32_t pos = static_cast<int32_t>(ratio * (maxPosition));
+    int32_t pos = static_cast<int32_t>(ratio * (m_posLimit));
 
     setTargetPosition(pos);
 }

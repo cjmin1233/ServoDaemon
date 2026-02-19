@@ -32,16 +32,34 @@ struct ServoParams {
     int16_t  quickStopOption; // 0x605A
     int16_t  shutdownOption;  // 0x605B
     int16_t  haltOption;      // 0x605D
+
+    // --- Mechanical Specs ---
+    uint32_t encoderPPR;       // 0x2002;
+    uint32_t motorRevolutions; // 0x6091:01
+    uint32_t shaftRevolutions; // 0x6091:02 -> Gear ratio = motor revolutions / shaft revolutions
+    uint32_t leadMm;           // Distance per motor revolution (mm)
+    uint32_t strokeMm;         // Maximum travel range (mm)
 };
+
+static constexpr uint32_t ppr[] = { 0 /* Dummy */, 1 << 18, 1 << 19 }; // 0x2002: encoder pulse per revolution (LS mecapion: automatically configured)
 
 const ServoParams SlaveConfigs[] = {
     {}, // Index 0(Dummy)
     {
-     // Slave 1
-        262144, 524288, 524288, 2621440, // PP: Vel, Acc, Dec, StopDec
-        0, 1, 262144, 26214, 524288,     // HM: Offset, Method, Spd1, Spd2, Acc
-        2, 0, 3000, 3000, 100, 1000, 0,  // PT: Torque settings
-        1000, 2, 1, 2,                   // Etc: Win, Stop, Shutdown, Halt
+     // Servo 1
+        ppr[1], ppr[1] * 2, ppr[1] * 2, ppr[1] * 10, // PP: Vel, Acc, Dec, StopDec
+        0, 1, ppr[1], ppr[1] / 10, ppr[1] * 2,       // HM: Offset, Method, Spd1, Spd2, Acc
+        2, 0, 3'000, 3'000, 100, 1'000, 0,           // PT: Torque settings
+        ppr[1] / 200, 2, 1, 2,                       // etc
+        ppr[1], 10, 1, 5, 200,                       // Mechanical Specs
+    },
+    {
+     // Servo 2
+        ppr[2], ppr[2] * 2, ppr[2] * 2, ppr[2] * 10, // PP: Vel, Acc, Dec, StopDec
+        0, 1, ppr[2], ppr[2] / 10, ppr[2] * 2,       // HM: Offset, Method, Spd1, Spd2, Acc
+        2, 0, 3'000, 3'000, 100, 1'000, 0,           // PT: Torque settings
+        ppr[2] / 200, 2, 1, 2,                       // etc
+        ppr[2], 10, 1, 10, 300,                      // Mechanical Specs
     },
 };
 }
