@@ -21,6 +21,7 @@ add_executable(ServoDaemon
   slave.h
   servol7nh.h
   servol7nh.cpp
+  servoconfig.h
 )
 target_link_libraries(ServoDaemon PRIVATE
   Qt${QT_VERSION_MAJOR}::Core

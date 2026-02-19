@@ -91,6 +91,9 @@ bool EcatMaster::start()
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
 
+        // TEST
+        if (i > 1) continue;
+
         m_Slaves[i]->start();
     }
 

@@ -1,15 +1,52 @@
-#include <chrono>
-#include <iostream>
-#include <thread>
+// #include <chrono>
+// #include <iostream>
+// #include <thread>
 
 #include <QDebug>
 
 #include "cia402.h"
+#include "servoconfig.h"
 #include "servol7nh.h"
 
 // settling constants
 static constexpr int SETTLING_TIMEOUT      = 5000;
 static constexpr int SETTLING_STABLE_COUNT = 50;
+
+/**
+ * @brief Simplified wrapper for ec_SDOwrite using C++ templates.
+ * * Automatically determines data size using sizeof(T) and handles logging.
+ * * @tparam T Data type (uint32_t, int16_t, etc.)
+ * @param slaveId Index of the slave on the EtherCAT network.
+ * @param index Object Dictionary Index (e.g., 0x6081).
+ * @param subIndex Object Dictionary Sub-Index.
+ * @param value The value to be written to the slave.
+ * @param label Descriptive name for logging/debugging purposes.
+ * @return True if successful, false if a communication error occurs.
+ */
+template <typename T>
+int sdoWrite(uint16 slaveId, uint16 index, uint8 subIndex, T value, const char* label = nullptr)
+{
+    T data = value;
+
+    // Perform the actual SDO write operation
+    int wres = ec_SDOwrite(slaveId, index, subIndex, FALSE, sizeof(T), &data, EC_TIMEOUTRXM);
+
+    if (wres > 0) {
+        // Log success (uncomment for verbose debugging)
+        /*
+        qInfo() << "[SDO WRITE SUCCESS]" << (label ? label : "Unknown")
+                << QString("Index: 0x%1:%2").arg(index, 4, 16, QChar('0')).arg(subIndex)
+                << "Value:" << value;
+        */
+        return 1;
+    } else {
+        // Log critical failure with detailed information
+        qCritical() << "[SDO WRITE FAILED]" << (label ? label : "Unknown")
+                    << QString("Index: 0x%1:%2").arg(index, 4, 16, QChar('0')).arg(subIndex)
+                    << "Value:" << value;
+        return 0;
+    }
+}
 
 bool ServoL7NH::checkL7NH(int slaveId)
 {
@@ -45,15 +82,12 @@ int ServoL7NH::setup(uint16 slaveId)
     success &= setupTorque(slaveId);
 
     // etc...
-    uint32_t posWindow      = s_encoderResolution / 200;
-    int16_t  stopOption     = 2;
-    int16_t  shutdownOption = 1;
-    int16_t  haltOption     = 2;
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, sizeof(posWindow), &posWindow, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, FALSE, sizeof(stopOption), &stopOption, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, FALSE, sizeof(shutdownOption), &shutdownOption, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HALT_OPTION, 0, FALSE, sizeof(haltOption), &haltOption, EC_TIMEOUTRXM) > 0);
+    success &= sdoWrite(slaveId, cia402::IDX_POSITION_WINDOW, 0, cfg.positionWindow, "Position Window");
+    success &= sdoWrite(slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, cfg.quickStopOption, "Quick Stop Option");
+    success &= sdoWrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
+    success &= sdoWrite(slaveId, cia402::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
 
     qInfo() << "[ServoL7NH::setupL7NH] Result: " << (success ? "Success" : "Failed");
 
@@ -69,7 +103,7 @@ int ServoL7NH::setupPDO(uint16 slaveId)
     uint8_t  zero       = 0;
 
     // Set mapping count to 0 to clear existing mappings
-    success &= (ec_SDOwrite(slaveId, rxpdoIndex, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+    success &= sdoWrite(slaveId, rxpdoIndex, 0, zero, "RxPDO Map Count 0");
 
     uint32_t rxpdoEntries[] = {
         cia402::ENTRY_RX_CONTROL_WORD,
@@ -83,16 +117,16 @@ int ServoL7NH::setupPDO(uint16 slaveId)
 
     for (uint8_t i = 0; i < entryCount; ++i) {
         // Write each mapping entry
-        success &= (ec_SDOwrite(slaveId, rxpdoIndex, i + 1, FALSE, sizeof(rxpdoEntries[i]), &rxpdoEntries[i], EC_TIMEOUTRXM) > 0);
+        success &= sdoWrite(slaveId, rxpdoIndex, i + 1, rxpdoEntries[i], "RxPDO Map Entry");
     }
     // Finalize the mapping count
-    success &= (ec_SDOwrite(slaveId, rxpdoIndex, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+    success &= sdoWrite(slaveId, rxpdoIndex, 0, entryCount, "RxPDO Map Count");
 
     // --- [STEP 2] TXPDO Mapping Content (0x1A00) ---
     uint16_t txpdoIndex = cia402::IDX_TXPDO_MAPPING_1;
 
     // same as rxpdo: clear existing mappings first
-    success &= (ec_SDOwrite(slaveId, txpdoIndex, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
+    success &= sdoWrite(slaveId, txpdoIndex, 0, zero, "TxPDO Map Count 0");
 
     uint32_t txpdoEntries[] = {
         cia402::ENTRY_TX_STATUS_WORD,
@@ -107,23 +141,23 @@ int ServoL7NH::setupPDO(uint16 slaveId)
 
     for (uint8_t i = 0; i < entryCount; ++i) {
         // Write each mapping entry
-        success &= (ec_SDOwrite(slaveId, txpdoIndex, i + 1, FALSE, sizeof(txpdoEntries[i]), &txpdoEntries[i], EC_TIMEOUTRXM) > 0);
+        success &= sdoWrite(slaveId, txpdoIndex, i + 1, txpdoEntries[i], "TxPDO Map Entry");
     }
     // Finalize the mapping count
-    success &= (ec_SDOwrite(slaveId, txpdoIndex, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+    success &= sdoWrite(slaveId, txpdoIndex, 0, entryCount, "TxPDO Map Count");
 
     // --- [STEP 3] Sync Manager 2 (RxPDO) & 3 (TxPDO) Assignment ---
     // RxPDO
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 1, FALSE, sizeof(rxpdoIndex), &rxpdoIndex, EC_TIMEOUTRXM) > 0);
+    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, zero, "SM2 Assign Count 0");
+    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 1, rxpdoIndex, "SM2 Assign RxPDO");
     entryCount  = 1;
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, entryCount, "SM2 Assign Count");
 
     // TxPDO
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, FALSE, sizeof(zero), &zero, EC_TIMEOUTRXM) > 0);
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 1, FALSE, sizeof(txpdoIndex), &txpdoIndex, EC_TIMEOUTRXM) > 0);
+    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, zero, "SM3 Assign Count 0");
+    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 1, txpdoIndex, "SM3 Assign TxPDO");
     entryCount  = 1;
-    success    &= (ec_SDOwrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, FALSE, sizeof(entryCount), &entryCount, EC_TIMEOUTRXM) > 0);
+    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, entryCount, "SM3 Assign Count");
 
     return success;
 }
@@ -132,16 +166,13 @@ int ServoL7NH::setupPosition(uint16 slaveId)
 {
     int success = 1; // SOEM callbacks expect 1 on success
 
-    // Set position objects
-    uint32_t profileVel = s_encoderResolution;
-    uint32_t profileAcc = s_encoderResolution * 2;
-    uint32_t profileDec = s_encoderResolution * 2;
-    uint32_t stopDec    = s_encoderResolution * 10;
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_PROFILE_VELOCITY, 0, FALSE, sizeof(profileVel), &profileVel, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_PROFILE_ACCEL, 0, FALSE, sizeof(profileAcc), &profileAcc, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_PROFILE_DECEL, 0, FALSE, sizeof(profileDec), &profileDec, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_STOP_DECEL, 0, FALSE, sizeof(stopDec), &stopDec, EC_TIMEOUTRXM) > 0);
+    // Set position objects
+    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_VELOCITY, 0, cfg.profileVelocity, "Profile Velocity");
+    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
+    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
+    success &= sdoWrite(slaveId, cia402::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
 
     return success;
 }
@@ -150,20 +181,15 @@ int ServoL7NH::setupHoming(uint16 slaveId)
 {
     int success = 1; // SOEM callbacks expect 1 on success
 
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
+
     // Set homing objects
-    int32_t  homeOffset   = s_encoderResolution / 200;
-    int8_t   homingMethod = cia402::HM_NEG_LIMIT_SWITCH_AND_INDEX;
-    uint32_t spdSwitch    = s_encoderResolution;
-    uint32_t spdZero      = s_encoderResolution / 10;
-    uint32_t homingAcc    = s_encoderResolution * 2;
+    success &= sdoWrite(slaveId, cia402::IDX_HOME_OFFSET, 0, cfg.homeOffset, "Home Offset");
+    success &= sdoWrite(slaveId, cia402::IDX_HOMING_METHOD, 0, cfg.homingMethod, "Homing Method");
+    success &= sdoWrite(slaveId, cia402::IDX_HOMING_SPEED, 1, cfg.homingSpdSwitch, "Homing Speed Switch");
+    success &= sdoWrite(slaveId, cia402::IDX_HOMING_SPEED, 2, cfg.homingSpdZero, "Homing Speed Zero");
+    success &= sdoWrite(slaveId, cia402::IDX_HOMING_ACCEL, 0, cfg.homingAccel, "Homing Accel");
 
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HOME_OFFSET, 0, FALSE, sizeof(homeOffset), &homeOffset, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_METHOD, 0, FALSE, sizeof(homingMethod), &homingMethod, EC_TIMEOUTRXM) > 0);
-
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_SPEED, 1, FALSE, sizeof(spdSwitch), &spdSwitch, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_SPEED, 2, FALSE, sizeof(spdZero), &spdZero, EC_TIMEOUTRXM) > 0);
-
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_HOMING_ACCEL, 0, FALSE, sizeof(homingAcc), &homingAcc, EC_TIMEOUTRXM) > 0);
     return success;
 }
 
@@ -171,22 +197,16 @@ int ServoL7NH::setupTorque(uint16 slaveId)
 {
     int success = 1; // SOEM callbacks expect 1 on success
 
-    // Setup torque objects
-    uint16_t torqueLimitFunc  = 2;
-    uint16_t speedLimitFunc   = 0;
-    uint16_t posTorqueLimit   = 3000;
-    uint16_t negTorqueLimit   = 3000;
-    uint16_t torqueSpeedLimit = 1000;
-    uint32_t torqueSlope      = 1000;
-    int16_t  torqueOffset     = 0;
+    const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_LIMIT_FUNCTION, 0, FALSE, sizeof(torqueLimitFunc), &torqueLimitFunc, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_SPEED_LIMIT_FUNCTION, 0, FALSE, sizeof(speedLimitFunc), &speedLimitFunc, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_POSITIVE_TORQUE_LIMIT, 0, FALSE, sizeof(posTorqueLimit), &posTorqueLimit, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_NEGATIVE_TORQUE_LIMIT, 0, FALSE, sizeof(negTorqueLimit), &negTorqueLimit, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_SPEED_LIMIT, 0, FALSE, sizeof(torqueSpeedLimit), &torqueSpeedLimit, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_SLOPE, 0, FALSE, sizeof(torqueSlope), &torqueSlope, EC_TIMEOUTRXM) > 0);
-    success &= (ec_SDOwrite(slaveId, cia402::IDX_TORQUE_OFFSET, 0, FALSE, sizeof(torqueOffset), &torqueOffset, EC_TIMEOUTRXM) > 0);
+    // Setup torque objects
+    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_LIMIT_FUNCTION, 0, cfg.torqueLimitFunc, "Torque Limit Func");
+    success &= sdoWrite(slaveId, cia402::IDX_SPEED_LIMIT_FUNCTION, 0, cfg.speedLimitFunc, "Speed Limit Func");
+    success &= sdoWrite(slaveId, cia402::IDX_POSITIVE_TORQUE_LIMIT, 0, cfg.posTorqueLimit, "Positive Torque Limit");
+    success &= sdoWrite(slaveId, cia402::IDX_NEGATIVE_TORQUE_LIMIT, 0, cfg.negTorqueLimit, "Negative Torque Limit");
+    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_SPEED_LIMIT, 0, cfg.torqueSpeedLimit, "Torque Speed Limit");
+    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_SLOPE, 0, cfg.torqueSlope, "Torque Slope");
+    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_OFFSET, 0, cfg.torqueOffset, "Torque Offset");
 
     return success;
 }
@@ -472,8 +492,8 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isWarning = statusWord & cia402::SW_BIT_WARNING_OCCURED;
-    const bool isLimit   = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
+    // const bool isWarning = statusWord & cia402::SW_BIT_WARNING_OCCURED;
+    const bool isLimit = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
 
     // if (isWarning) {
     //     qWarning() << "[ServoL7NH::processPT] PT Mode Warning Detected!";
