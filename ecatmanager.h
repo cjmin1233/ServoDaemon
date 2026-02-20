@@ -26,7 +26,8 @@ public:
 
     // bool checkInterface();
 
-    void launchServoMove(float ratio);
+    void setPosition(float ratio);
+    void setPosition(int32_t pos);
     void setHome();
     void setTorque();
 

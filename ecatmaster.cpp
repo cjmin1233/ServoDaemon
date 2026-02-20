@@ -43,7 +43,8 @@ bool EcatMaster::init(const std::string& ifname)
 
         // detect and create slave instances
         if (ServoL7NH::checkL7NH(i)) {
-            m_ServoId = i;
+            // m_ServoId = i;
+            m_ServoId = 1; // TEST
 
             // setup PO2SOconfig function
             slave.PO2SOconfig = &ServoL7NH::setup;
@@ -142,7 +143,7 @@ void EcatMaster::stop()
 }
 
 // set target position to servo in ratio [0.0, 1.0]
-void EcatMaster::servoMovePosition(float ratio)
+void EcatMaster::setPosition(float ratio)
 {
     // clamp ratio to [0.0, 1.0]
     if (ratio < 0.0f) ratio = 0.0f;
@@ -156,6 +157,18 @@ void EcatMaster::servoMovePosition(float ratio)
     }
 
     servo->setTargetPosition(ratio);
+}
+
+void EcatMaster::setPosition(int32_t pos)
+{
+    // get pointer to servo
+    auto* servo = getPtrServo();
+
+    if (servo == nullptr) {
+        return;
+    }
+
+    servo->setTargetPosition(pos);
 }
 
 // set homing command to servo

@@ -30,7 +30,8 @@ public:
     bool start();
     void stop();
 
-    void servoMovePosition(float ratio);
+    void setPosition(float ratio);
+    void setPosition(int32_t pos);
     void setHome();
     void setTorque();
 

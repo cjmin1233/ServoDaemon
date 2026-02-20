@@ -50,18 +50,18 @@ const ServoParams SlaveConfigs[] = {
     {}, // Index 0(Dummy)
     {
      // Servo 1
-        ppr[1], ppr[1] * 2, ppr[1] * 2, ppr[1] * 10, 5000, 3, // PP: Vel, Acc, Dec, StopDec, etc
-        0, 1, ppr[1], ppr[1] / 10, ppr[1] * 2,                // HM: Offset, Method, Spd1, Spd2, Acc
-        2, 0, 3'000, 3'000, 100, 1'000, 0,                    // PT: Torque settings
-        ppr[1] / 100, 2, 1, 2,                                // etc
-        ppr[1], 1, 10, 1, 5, 200,                             // Mechanical Specs
+        ppr[1], ppr[1] * 2, ppr[1] * 2, ppr[1] * 10, 5000, 3,                      // PP: Vel, Acc, Dec, StopDec, etc
+        0, 1, ppr[1], ppr[1] / 10, ppr[1] * 2,                                     // HM: Offset, Method, Spd1, Spd2, Acc
+        2, 0, 3'000, 3'000, 100, 1'000, 0,                                         // PT: Torque settings
+        ppr[1] / 5000 /* posWindow = ppr / (gearRatio * leadMm * 100) */, 2, 1, 2, // etc
+        ppr[1], 1, 10, 1, 5, 200,                                                  // Mechanical Specs
     },
     {
      // Servo 2
         ppr[2], ppr[2] * 2, ppr[2] * 2, ppr[2] * 10, 5000, 3, // PP: Vel, Acc, Dec, StopDec, etc
         0, 1, ppr[2], ppr[2] / 10, ppr[2] * 2,                // HM: Offset, Method, Spd1, Spd2, Acc
         2, 0, 3'000, 3'000, 100, 1'000, 0,                    // PT: Torque settings
-        ppr[2] / 200, 2, 1, 2,                                // etc
+        ppr[2] / 10000 /* posWindow = ppr / (gearRatio * leadMm * 100) */, 2, 1, 2,                              // etc
         ppr[2], 0, 10, 1, 10, 300,                            // Mechanical Specs
     },
 };

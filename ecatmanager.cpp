@@ -78,9 +78,14 @@ void EcatManager::disconnectMaster()
     m_Master.stop();
 }
 
-void EcatManager::launchServoMove(float ratio)
+void EcatManager::setPosition(float ratio)
 {
-    m_Master.servoMovePosition(ratio);
+    m_Master.setPosition(ratio);
+}
+
+void EcatManager::setPosition(int32_t pos)
+{
+    m_Master.setPosition(pos);
 }
 
 void EcatManager::setHome()
