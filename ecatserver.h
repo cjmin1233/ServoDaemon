@@ -31,8 +31,9 @@ private:
     void processCommand(QDataStream& in, const Command& cmd);
 
 private:
-    QTcpServer* m_server        = nullptr;
-    QTcpSocket* m_currentClient = nullptr;
+    QTcpServer*        m_server  = nullptr;
+    QList<QTcpSocket*> m_clients = {};
+    // QTcpSocket*        m_currentClient = nullptr;
 
     QTimer* m_timer = nullptr;
 

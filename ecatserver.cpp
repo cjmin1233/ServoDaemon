@@ -57,21 +57,30 @@ void EcatServer::start()
 
 void EcatServer::stop()
 {
-    qInfo() << "[EcatServer] Stopping server...";
+    qInfo() << "[EcatServer::stop] Stopping server...";
 
     // stop timer
     m_timer->stop();
 
-    // disconnect client
-    if (m_currentClient) {
-        m_currentClient->disconnectFromHost();
+    // disconnect clients
+    for (QTcpSocket* socket : m_clients) {
+        if (socket->state() == QAbstractSocket::ConnectedState) {
+            // socket->write("SERVER_SHUTDOWN");
+            socket->disconnectFromHost();
 
-        // automatically call onClientDisconnected... no need to delete client
+            if (socket->waitForDisconnected(1000)) {
+                qDebug() << "[EcatServer::stop] Client disconnected safely.";
+            }
+        }
     }
+
+    qDeleteAll(m_clients);
+    m_clients.clear();
 
     // close server
     if (m_server->isListening()) {
         m_server->close();
+        qInfo() << "[EcatServer::stop] TCP Server is now closed.";
     }
 
     // disconnect EtherCAT master
@@ -80,40 +89,53 @@ void EcatServer::stop()
 
 void EcatServer::onServerConnection()
 {
-    // disconnect previous client if exists
-    if (m_currentClient != nullptr) {
-        m_currentClient->deleteLater();
+    while (m_server->hasPendingConnections()) {
+        QTcpSocket* clientSocket = m_server->nextPendingConnection();
+
+        m_clients.append(clientSocket);
+
+        // connect signals for client socket
+        QObject::connect(clientSocket, &QTcpSocket::readyRead,
+                         this, &EcatServer::onClientReadyread);
+        QObject::connect(clientSocket, &QTcpSocket::disconnected,
+                         this, &EcatServer::onClientDisconnected);
+
+        qInfo() << "[EcatServer::onServerConnection] New client connected. Total clients:" << m_clients.size();
     }
 
-    // accept new client connection
-    m_currentClient = m_server->nextPendingConnection();
+    // // disconnect previous client if exists
+    // if (m_currentClient != nullptr) {
+    //     m_currentClient->deleteLater();
+    // }
 
-    if (m_currentClient == nullptr) {
-        qWarning() << "[EcatServer::onServerConnection] Client connect failed!";
-        return;
-    }
+    // // accept new client connection
+    // m_currentClient = m_server->nextPendingConnection();
 
-    qDebug() << "[EcatServer::onServerConnection] Client connected!";
+    // if (m_currentClient == nullptr) {
+    //     qWarning() << "[EcatServer::onServerConnection] Client connect failed!";
+    //     return;
+    // }
 
-    // connect signals for client socket
-    QObject::connect(m_currentClient, &QTcpSocket::readyRead,
-                     this, &EcatServer::onClientReadyread);
-    QObject::connect(m_currentClient, &QTcpSocket::disconnected,
-                     this, &EcatServer::onClientDisconnected);
+    // qDebug() << "[EcatServer::onServerConnection] Client connected!";
+
+    // // connect signals for client socket
+    // QObject::connect(m_currentClient, &QTcpSocket::readyRead,
+    //                  this, &EcatServer::onClientReadyread);
+    // QObject::connect(m_currentClient, &QTcpSocket::disconnected,
+    //                  this, &EcatServer::onClientDisconnected);
 }
 
 void EcatServer::onClientReadyread()
 {
-    if (m_currentClient == nullptr) return;
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
 
-    // read data from client
-    QDataStream in(m_currentClient);
+    QDataStream in(socket);
     in.setVersion(QDataStream::Qt_6_5);
 
     // start transaction for safe reading
     in.startTransaction();
 
-    // TODO: read command structure
     quint32 blockSize;
     in >> blockSize;
 
@@ -121,16 +143,40 @@ void EcatServer::onClientReadyread()
     in >> cmd;
 
     processCommand(in, cmd);
+
+    // if (m_currentClient == nullptr) return;
+
+    // // read data from client
+    // QDataStream in(m_currentClient);
+    // in.setVersion(QDataStream::Qt_6_5);
+
+    // // start transaction for safe reading
+    // in.startTransaction();
+
+    // // TODO: read command structure
+    // quint32 blockSize;
+    // in >> blockSize;
+
+    // Command cmd;
+    // in >> cmd;
+
+    // processCommand(in, cmd);
 }
 
 void EcatServer::onClientDisconnected()
 {
-    qDebug() << "[EcatServer::onClientDisconnected] Client Disconnected!";
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
 
-    if (m_currentClient) {
-        m_currentClient->deleteLater();
-        m_currentClient = nullptr;
-    }
+    m_clients.removeAll(socket);
+    socket->deleteLater();
+
+    qInfo() << "[EcatServer::onClientDisconnected] Client disconnected. Remaining clients:" << m_clients.size();
+
+    // if (m_currentClient) {
+    //     m_currentClient->deleteLater();
+    //     m_currentClient = nullptr;
+    // }
 }
 
 void EcatServer::onTimerTick()
@@ -151,33 +197,33 @@ void EcatServer::onTimerTick()
         return;
     }
 
-    // If there is a connected client, send servo status
-    // TODO: send status to all connected clients
-    if (m_currentClient && m_currentClient->state() == QAbstractSocket::ConnectedState) {
-        int servoId = 1; // temporary
+    // // If there is a connected client, send servo status
+    // // TODO: send status to all connected clients
+    // if (m_currentClient && m_currentClient->state() == QAbstractSocket::ConnectedState) {
+    //     int servoId = 1; // temporary
 
-        const ServoStatus& status = m_ecatManager->getServoStatus(servoId);
-        QByteArray         block;
-        QDataStream        out(&block, QIODevice::WriteOnly);
+    //     const ServoStatus& status = m_ecatManager->getServoStatus(servoId);
+    //     QByteArray         block;
+    //     QDataStream        out(&block, QIODevice::WriteOnly);
 
-        out.setVersion(QDataStream::Qt_6_5);
+    //     out.setVersion(QDataStream::Qt_6_5);
 
-        // 1. size placeholder, actual size will be written later
-        out << (quint32)0;
-        out << status.position << status.velocity;
+    //     // 1. size placeholder, actual size will be written later
+    //     out << (quint32)0;
+    //     out << status.position << status.velocity;
 
-        // 2. go back and write the actual size
-        out.device()->seek(0);
-        out << (quint32)(block.size() - sizeof(quint32));
+    //     // 2. go back and write the actual size
+    //     out.device()->seek(0);
+    //     out << (quint32)(block.size() - sizeof(quint32));
 
-        // 3. send the data block to client
-        m_currentClient->write(block);
-        // m_currentClient->write("server tick");
+    //     // 3. send the data block to client
+    //     m_currentClient->write(block);
+    //     // m_currentClient->write("server tick");
 
-        // wait until all data is written
-        m_currentClient->waitForBytesWritten();
-        m_currentClient->flush();
-    }
+    //     // wait until all data is written
+    //     m_currentClient->waitForBytesWritten();
+    //     m_currentClient->flush();
+    // }
 }
 
 void EcatServer::startTimer()
