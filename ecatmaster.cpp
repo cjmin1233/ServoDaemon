@@ -281,13 +281,13 @@ void EcatMaster::ecatCheck()
             // increment continuous error count
             ++continuousErrorCount;
 
-            // if error count exceeds max, stop the master
-            if (continuousErrorCount > errorCountMax) {
-                std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!" << std::endl;
+            // // if error count exceeds max, stop the master
+            // if (continuousErrorCount > errorCountMax) {
+            //     std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!" << std::endl;
 
-                m_Running = false;
-                break;
-            }
+            //     m_Running = false;
+            //     break;
+            // }
 
             // clear check state flag
             ec_group[m_CurrentGroup].docheckstate = FALSE;
