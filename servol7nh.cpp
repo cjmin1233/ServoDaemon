@@ -112,6 +112,8 @@ int ServoL7NH::setup(uint16 slaveId)
     success             &= sdoWrite(slaveId, cia402::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
 
     // Mechanical Specs
+    // *** effective after reboot ***
+    success &= sdoWrite(slaveId, cia402::IDX_ROTATION_DIRECTION, 0, cfg.rotationDirection, "Rotation Direction");
     success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
     success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
 
