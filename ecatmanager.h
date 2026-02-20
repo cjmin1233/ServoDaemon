@@ -26,10 +26,7 @@ public:
 
     // bool checkInterface();
 
-    void setPosition(float ratio);
-    void setPosition(int32_t pos);
-    void setHome();
-    void setTorque();
+    void processCommand(const Command& cmd);
 
 private:
     void searchValidAdapter();

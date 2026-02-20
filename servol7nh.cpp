@@ -309,8 +309,8 @@ void ServoL7NH::start()
     m_pulsePerMm = calcPulsePerMm(m_slaveId);
     m_posLimit   = calcPosLimit(m_slaveId);
 
-    // start command: homing mode
-    setHome();
+    // // start command: homing mode
+    // setHome();
 }
 
 void ServoL7NH::stop()
@@ -339,7 +339,7 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     if (rxpdo == nullptr) return;
 
     rxpdo->mode             = static_cast<int8_t>(cia402::Mode::PP);
-    rxpdo->target_position  = pos;
+    rxpdo->target_position  = pos * m_pulsePerMm;             // Calculate target position
     rxpdo->target_torque    = 0;                              // Clear target torque
     rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);         // Clear halt bit
     rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);      // Absolute move

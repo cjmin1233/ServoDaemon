@@ -78,24 +78,9 @@ void EcatManager::disconnectMaster()
     m_Master.stop();
 }
 
-void EcatManager::setPosition(float ratio)
+void EcatManager::processCommand(const Command& cmd)
 {
-    m_Master.setPosition(ratio);
-}
-
-void EcatManager::setPosition(int32_t pos)
-{
-    m_Master.setPosition(pos);
-}
-
-void EcatManager::setHome()
-{
-    m_Master.setHome();
-}
-
-void EcatManager::setTorque()
-{
-    m_Master.setTorque();
+    m_Master.processCommand(cmd);
 }
 
 // search for a valid EtherCAT adapter and update m_ifname

@@ -2,6 +2,7 @@
 #include "cia402.h"
 #include "servol7nh.h"
 
+#include <QDebug>
 #include <iostream>
 
 /** timeout value in us for return "Operational" state */
@@ -43,9 +44,6 @@ bool EcatMaster::init(const std::string& ifname)
 
         // detect and create slave instances
         if (ServoL7NH::checkL7NH(i)) {
-            // m_ServoId = i;
-            m_ServoId = 1; // TEST
-
             // setup PO2SOconfig function
             slave.PO2SOconfig = &ServoL7NH::setup;
 
@@ -91,9 +89,6 @@ bool EcatMaster::start()
     // start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
         if (m_Slaves[i] == nullptr) continue;
-
-        // TEST
-        if (i > 1) continue;
 
         m_Slaves[i]->start();
     }
@@ -142,27 +137,10 @@ void EcatMaster::stop()
     }
 }
 
-// set target position to servo in ratio [0.0, 1.0]
-void EcatMaster::setPosition(float ratio)
-{
-    // clamp ratio to [0.0, 1.0]
-    if (ratio < 0.0f) ratio = 0.0f;
-    if (ratio > 1.0f) ratio = 1.0f;
-
-    // get pointer to servo
-    auto* servo = getPtrServo();
-
-    if (servo == nullptr) {
-        return;
-    }
-
-    servo->setTargetPosition(ratio);
-}
-
-void EcatMaster::setPosition(int32_t pos)
+void EcatMaster::setPosition(int slaveId, int32_t pos)
 {
     // get pointer to servo
-    auto* servo = getPtrServo();
+    auto* servo = getPtrServo(slaveId);
 
     if (servo == nullptr) {
         return;
@@ -171,11 +149,10 @@ void EcatMaster::setPosition(int32_t pos)
     servo->setTargetPosition(pos);
 }
 
-// set homing command to servo
-void EcatMaster::setHome()
+void EcatMaster::setHome(int slaveId)
 {
     // get pointer to servo
-    auto* servo = getPtrServo();
+    auto* servo = getPtrServo(slaveId);
 
     if (servo == nullptr) {
         return;
@@ -184,16 +161,49 @@ void EcatMaster::setHome()
     servo->setHome();
 }
 
-void EcatMaster::setTorque()
+void EcatMaster::setTorque(int slaveId, int32_t torque)
 {
     // get pointer to servo
-    auto* servo = getPtrServo();
+    auto* servo = getPtrServo(slaveId);
 
     if (servo == nullptr) {
         return;
     }
 
-    servo->setTorque(1000); // 100% torque for test
+    servo->setTorque(torque);
+}
+
+void EcatMaster::processCommand(const Command& cmd)
+{
+    switch (cmd.cmdType) {
+    case CommandType::MovePosition: {
+        qDebug() << "[EcatMaster::processCommand] Command Received: MovePosition, position:" << cmd.value;
+
+        setPosition(cmd.slaveId, cmd.value);
+        break;
+    }
+    case CommandType::SetHome: {
+        qDebug() << "[EcatMaster::processCommand] Command Received: SetHome";
+
+        setHome(cmd.slaveId);
+        break;
+    }
+    case CommandType::SetTorque: {
+        qDebug() << "[EcatMaster::processCommand] Command Received: SetTorque, torque:" << cmd.value;
+
+        setTorque(cmd.slaveId, cmd.value);
+        break;
+    }
+    case CommandType::StopServo: {
+        qDebug() << "[EcatMaster::processCommand] Command Received: StopServo";
+
+        //
+        break;
+    }
+    default:
+        qWarning() << "[EcatMaster::processCommand] Unknown Command Received:" << (quint32)cmd.cmdType;
+        break;
+    }
 }
 
 // if valid servo, return its status; else return empty status
@@ -208,13 +218,13 @@ const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
     return empty;
 }
 
-const bool EcatMaster::isServoRunning() const
-{
-    if (const auto* ptrServo = getPtrServo()) {
-        return ptrServo->isRunning();
-    }
-    return false;
-}
+// const bool EcatMaster::isServoRunning() const
+// {
+//     if (const auto* ptrServo = getPtrServo(1 /* TEST */)) {
+//         return ptrServo->isRunning();
+//     }
+//     return false;
+// }
 
 bool EcatMaster::isAdapterValid(const std::string& ifname)
 {
@@ -417,16 +427,17 @@ void EcatMaster::slavesCheck()
 }
 
 // get pointer to ServoL7NH instance
-ServoL7NH* EcatMaster::getPtrServo()
+ServoL7NH* EcatMaster::getPtrServo(int slaveId)
 {
-    return const_cast<ServoL7NH*>(static_cast<const EcatMaster*>(this)->getPtrServo());
+    return const_cast<ServoL7NH*>(static_cast<const EcatMaster*>(this)->getPtrServo(slaveId));
 }
 
-const ServoL7NH* EcatMaster::getPtrServo() const
+const ServoL7NH* EcatMaster::getPtrServo(int slaveId) const
 {
-    if (m_ServoId <= 0) {
+    if (slaveId <= 0 || slaveId > ec_slavecount) {
+        // Out of bounds
         return nullptr;
     }
 
-    return dynamic_cast<const ServoL7NH*>(m_Slaves[m_ServoId].get());
+    return dynamic_cast<const ServoL7NH*>(m_Slaves[slaveId].get());
 }

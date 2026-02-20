@@ -30,10 +30,7 @@ public:
     bool start();
     void stop();
 
-    void setPosition(float ratio);
-    void setPosition(int32_t pos);
-    void setHome();
-    void setTorque();
+    void processCommand(const Command& cmd);
 
     const ServoStatus& getServoStatus(int slaveId) const;
     const bool         isRunning() const { return m_Running; }
@@ -52,8 +49,12 @@ private:
     void ecatCheck();
     void slavesCheck();
 
-    ServoL7NH*       getPtrServo();
-    const ServoL7NH* getPtrServo() const;
+    void setPosition(int slaveId, int32_t pos);
+    void setHome(int slaveId);
+    void setTorque(int slaveId, int32_t torque);
+
+    ServoL7NH*       getPtrServo(int slaveId);
+    const ServoL7NH* getPtrServo(int slaveId) const;
 
 private:
     std::atomic<bool> m_Running { false };
@@ -69,8 +70,6 @@ private:
     int              m_CurrentGroup = 0;
 
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
-
-    int m_ServoId = 0;
 };
 
 #endif // ECATMASTER_H

@@ -121,63 +121,6 @@ void EcatServer::onClientReadyread()
     in >> cmd;
 
     processCommand(in, cmd);
-    // quint32 blockSize;
-    // quint32 cmdInt;
-
-    // // read data fields
-    // in >> blockSize;
-    // in >> cmdInt;
-
-    // CommandType cmdType = static_cast<CommandType>(cmdInt);
-
-    // switch (cmd.cmdType) {
-    // case CommandType::MovePosition: {
-    //     float ratio;
-    //     in >> ratio;
-    //     // check if transaction is successful
-    //     if (!in.commitTransaction()) {
-    //         return;
-    //     }
-
-    //     qDebug() << "[EcatServer::onClientReadyread] Command Received: MovePosition, Ratio:" << ratio;
-    //     m_ecatManager->setPosition(ratio);
-    //     break;
-    // }
-    // case CommandType::SetHome: {
-    //     // check if transaction is successful
-    //     if (!in.commitTransaction()) {
-    //         return;
-    //     }
-
-    //     qDebug() << "[EcatServer::onClientReadyread] Command Received: SetHome";
-    //     m_ecatManager->setHome();
-    //     break;
-    // }
-    // case CommandType::SetTorque: {
-    //     // check if transaction is successful
-    //     if (!in.commitTransaction()) {
-    //         return;
-    //     }
-
-    //     qDebug() << "[EcatServer::onClientReadyread] Command Received: SetTorque";
-    //     m_ecatManager->setTorque();
-    //     break;
-    // }
-    // case CommandType::StopServo: {
-    //     // check if transaction is successful
-    //     if (!in.commitTransaction()) {
-    //         return;
-    //     }
-
-    //     qDebug() << "[EcatServer::onClientReadyread] Command Received: StopServo";
-    //     m_ecatManager->disconnectMaster();
-    //     break;
-    // }
-    // default:
-    //     in.rollbackTransaction();
-    //     qWarning() << "[EcatServer::onClientReadyread] Unknown Command Received:" << (quint32)cmd.cmdType;
-    //     break;
-    // }
 }
 
 void EcatServer::onClientDisconnected()
@@ -248,50 +191,9 @@ void EcatServer::startTimer()
 
 void EcatServer::processCommand(QDataStream& in, const Command& cmd)
 {
-    switch (cmd.cmdType) {
-    case CommandType::MovePosition: {
-        // check if transaction is successful
-        if (!in.commitTransaction()) {
-            return;
-        }
+    if (!in.commitTransaction()) {
+        return;
+    }
 
-        qDebug() << "[EcatServer::readCommand] Command Received: MovePosition, position:" << cmd.value;
-        m_ecatManager->setPosition(cmd.value);
-        break;
-    }
-    case CommandType::SetHome: {
-        // check if transaction is successful
-        if (!in.commitTransaction()) {
-            return;
-        }
-
-        qDebug() << "[EcatServer::readCommand] Command Received: SetHome";
-        m_ecatManager->setHome();
-        break;
-    }
-    case CommandType::SetTorque: {
-        // check if transaction is successful
-        if (!in.commitTransaction()) {
-            return;
-        }
-
-        qDebug() << "[EcatServer::readCommand] Command Received: SetTorque, torque:" << cmd.value;
-        m_ecatManager->setTorque();
-        break;
-    }
-    case CommandType::StopServo: {
-        // check if transaction is successful
-        if (!in.commitTransaction()) {
-            return;
-        }
-
-        qDebug() << "[EcatServer::readCommand] Command Received: StopServo";
-        m_ecatManager->disconnectMaster();
-        break;
-    }
-    default:
-        in.rollbackTransaction();
-        qWarning() << "[EcatServer::readCommand] Unknown Command Received:" << (quint32)cmd.cmdType;
-        break;
-    }
+    m_ecatManager->processCommand(cmd);
 }
