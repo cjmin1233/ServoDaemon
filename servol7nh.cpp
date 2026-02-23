@@ -363,8 +363,8 @@ void ServoL7NH::setTorque(int16_t torque)
 
     rxpdo->mode          = static_cast<int8_t>(cia402::Mode::PT);
     rxpdo->control_word &= ~(cia402::CW_BIT_HALT); // Clear halt bit
-    // rxpdo->target_torque  = torque;
-	m_targetTorque = torque;    // Store target torque to be applied in processPT
+                                                   // rxpdo->target_torque  = torque;
+    m_targetTorque = torque;                       // Store target torque to be applied in processPT
 
     m_isSettling = false;
 }
@@ -389,7 +389,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
         qInfo() << "[ServoL7NH::stateCheck] ecat state not op...";
-        // return;
+        return;
     }
 
     if (rxpdo == nullptr || txpdo == nullptr) {
@@ -493,20 +493,20 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
         m_flagNewSetpoint = false;
     }
 
-    if (isInPosition(rxpdo, txpdo) && !m_isSettling) {
-        qInfo() << "[ServoL7NH::processPP] Target reached. Start settling check...";
+    // if (isInPosition(rxpdo, txpdo) && !m_isSettling) {
+    //     qInfo() << "[ServoL7NH::processPP] Target reached. Start settling check...";
 
-        m_isSettling            = true;
-        m_settlingTimeout       = SETTLING_TIMEOUT;
-        m_settlingStableCounter = 0;
+    //     m_isSettling            = true;
+    //     m_settlingTimeout       = SETTLING_TIMEOUT;
+    //     m_settlingStableCounter = 0;
 
-        return;
-    }
+    //     return;
+    // }
 
-    // Settling phase logic
-    if (m_isSettling) {
-        settling(rxpdo, txpdo);
-    }
+    // // Settling phase logic
+    // if (m_isSettling) {
+    //     settling(rxpdo, txpdo);
+    // }
 }
 
 void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
@@ -524,8 +524,8 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
     static constexpr int16_t overloadWarning = 500; // 50%
 
     const int16_t overloadRatio = getOverloadRatio();
-	// If overload warning is active, set torque to 0 to prevent damage. Otherwise, use the target torque.
-    int16_t       safeTorque    = overloadRatio > overloadWarning ? 0 : m_targetTorque;
+    // If overload warning is active, set torque to 0 to prevent damage. Otherwise, use the target torque.
+    int16_t safeTorque = overloadRatio > overloadWarning ? 0 : m_targetTorque;
 
     rxpdo->target_torque = safeTorque;
 }
@@ -568,21 +568,21 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Homing processing...
     if (isHomingStart) {
-        // Homing Attained, enter settling phase
-        if (isHomingAttained && !m_isSettling) {
-            qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
+        // // Homing Attained, enter settling phase
+        // if (isHomingAttained && !m_isSettling) {
+        //     qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
 
-            m_isSettling            = true;
-            m_settlingTimeout       = SETTLING_TIMEOUT;
-            m_settlingStableCounter = 0;
+        //     m_isSettling            = true;
+        //     m_settlingTimeout       = SETTLING_TIMEOUT;
+        //     m_settlingStableCounter = 0;
 
-            return;
-        }
+        //     return;
+        // }
 
-        // Settling phase logic
-        if (m_isSettling) {
-            settling(rxpdo, txpdo);
-        }
+        // // Settling phase logic
+        // if (m_isSettling) {
+        //     settling(rxpdo, txpdo);
+        // }
     }
 }
 
@@ -599,8 +599,8 @@ void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
     if (m_settlingStableCounter >= SETTLING_STABLE_COUNT) {
         qInfo() << "[ServoL7NH::settling] Settling Succeeded (Stable in window)";
 
-        // Reset mode
-        rxpdo->mode = 0;
+        // // Reset mode
+        // rxpdo->mode = 0;
 
         controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
         m_isSettling  = false;
@@ -611,8 +611,8 @@ void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
     else if (m_settlingTimeout <= 0) {
         qInfo() << "[ServoL7NH::settling] Settling Failed (Timeout, not stable)";
 
-        // Reset mode
-        rxpdo->mode = 0;
+        // // Reset mode
+        // rxpdo->mode = 0;
 
         controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
         m_isSettling  = false;

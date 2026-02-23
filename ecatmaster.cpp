@@ -1,5 +1,6 @@
 #include "ecatmaster.h"
 #include "cia402.h"
+#include "servoconfig.h"
 #include "servol7nh.h"
 
 #include <QDebug>
@@ -232,7 +233,7 @@ bool EcatMaster::isAdapterValid(const std::string& ifname)
     ec_close();
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
 
-    return (slaveCount > 0);
+    return (slaveCount == ServoConfig::slaveCountMax);
 }
 
 // main process loop

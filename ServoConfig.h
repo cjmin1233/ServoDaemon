@@ -44,9 +44,10 @@ struct ServoParams {
     uint32_t strokeMm;          // Maximum travel range (mm)
 };
 
-static constexpr uint32_t ppr[] = { 0 /* Dummy */, 1 << 18, 1 << 19 }; // 0x2002: encoder pulse per revolution (LS mecapion: automatically configured)
+static constexpr uint32_t ppr[]         = { 0 /* Dummy */, 1 << 18, 1 << 19 }; // 0x2002: encoder pulse per revolution (LS mecapion: automatically configured)
+static constexpr int      slaveCountMax = 2;
 
-const ServoParams SlaveConfigs[] = {
+const ServoParams SlaveConfigs[slaveCountMax + 1] = {
     {}, // Index 0(Dummy)
     {
      // Servo 1
