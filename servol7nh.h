@@ -89,6 +89,10 @@ private:
 
     int32_t  m_posLimit   = 0;
     uint32_t m_pulsePerMm = 0;
+
+    // bool   m_wasWarning = false;
+    // int8_t m_lastMode = 0;
+    int16_t m_targetTorque;
 };
 
 #endif // SERVOL7NH_H

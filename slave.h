@@ -19,8 +19,14 @@ public:
     virtual void stop()  = 0;
     // virtual bool isReady() const = 0;
 
+    const int16_t getOverloadRatio() const { return m_overloadRatio; }
+    void          setOverloadRatio(int16_t overload) { m_overloadRatio = overload; }
+
 protected:
     uint16_t m_slaveId;
+
+private:
+    int16_t m_overloadRatio = 0;
 
 private:
     Slave(const Slave&)            = delete;

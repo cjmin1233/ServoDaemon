@@ -248,10 +248,6 @@ void ServoL7NH::processData()
     const auto* txpdo      = ptrTxPDO();
     const auto& statusWord = txpdo->status_word;
 
-    //     if (statusWord & cia402::SW_BIT_WARNING_OCCURED) {
-    //         qWarning() << "[ServoL7NH::processData] Warning Detected!";
-    //     }
-
     if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED) {
         const auto& currentMode = static_cast<cia402::Mode>(txpdo->mode_disp);
 
@@ -297,10 +293,6 @@ void ServoL7NH::processData()
 
 void ServoL7NH::start()
 {
-    // int psize = sizeof(m_posWindow);
-    // // read position window setting
-    // ec_SDOread(m_slaveId, cia402::IDX_POSITION_WINDOW, 0, FALSE, &psize, &m_posWindow, EC_TIMEOUTRXM);
-
     const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
 
     m_posWindow = cfg.positionWindow;
@@ -324,9 +316,6 @@ void ServoL7NH::stop()
 
 void ServoL7NH::setTargetPosition(float ratio)
 {
-    // static constexpr int32_t maxPosition = 262'144 * 4;
-    // const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
-
     int32_t pos = m_posLimit * ratio;
 
     setTargetPosition(pos);
@@ -372,9 +361,10 @@ void ServoL7NH::setTorque(int16_t torque)
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode           = static_cast<int8_t>(cia402::Mode::PT);
-    rxpdo->control_word  &= ~(cia402::CW_BIT_HALT); // Clear halt bit
-    rxpdo->target_torque  = 1200;
+    rxpdo->mode          = static_cast<int8_t>(cia402::Mode::PT);
+    rxpdo->control_word &= ~(cia402::CW_BIT_HALT); // Clear halt bit
+    // rxpdo->target_torque  = torque;
+	m_targetTorque = torque;    // Store target torque to be applied in processPT
 
     m_isSettling = false;
 }
@@ -531,15 +521,13 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    // const bool isWarning = statusWord & cia402::SW_BIT_WARNING_OCCURED;
-    const bool isLimit = statusWord & cia402::SW_BIT_INTERNAL_LIMIT;
+    static constexpr int16_t overloadWarning = 500; // 50%
 
-    // if (isWarning) {
-    //     qWarning() << "[ServoL7NH::processPT] PT Mode Warning Detected!";
-    // }
-    if (isLimit) {
-        qWarning() << "[ServoL7NH::processPT] Internal Limit Active: Torque might be capped by drive parameters.";
-    }
+    const int16_t overloadRatio = getOverloadRatio();
+	// If overload warning is active, set torque to 0 to prevent damage. Otherwise, use the target torque.
+    int16_t       safeTorque    = overloadRatio > overloadWarning ? 0 : m_targetTorque;
+
+    rxpdo->target_torque = safeTorque;
 }
 
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)

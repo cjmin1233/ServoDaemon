@@ -85,6 +85,7 @@ bool EcatMaster::start()
     // Ensure previous threads are properly joined before starting new ones
     if (m_Worker.joinable()) m_Worker.join();
     if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
+    if (m_Monitor.joinable()) m_Monitor.join();
 
     // start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
@@ -98,6 +99,7 @@ bool EcatMaster::start()
     // start process loop thread, error handler thread
     m_Worker       = std::thread(&EcatMaster::processLoop, this);
     m_ErrorHandler = std::thread(&EcatMaster::ecatCheck, this);
+    m_Monitor      = std::thread(&EcatMaster::monitorLoop, this);
 
     return true;
 }
@@ -110,6 +112,7 @@ void EcatMaster::stop()
     // wait for threads to finish
     if (m_Worker.joinable()) m_Worker.join();
     if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
+    if (m_Monitor.joinable()) m_Monitor.join();
 
     // stop all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
@@ -218,14 +221,6 @@ const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
     return empty;
 }
 
-// const bool EcatMaster::isServoRunning() const
-// {
-//     if (const auto* ptrServo = getPtrServo(1 /* TEST */)) {
-//         return ptrServo->isRunning();
-//     }
-//     return false;
-// }
-
 bool EcatMaster::isAdapterValid(const std::string& ifname)
 {
     if (!ec_init(ifname.c_str())) {
@@ -295,23 +290,10 @@ void EcatMaster::ecatCheck()
     constexpr int cycleTimeUs   = 10000; // 10ms;
     constexpr int errorCountMax = 5;
 
-    int continuousErrorCount = 0;
-
     while (m_Running) {
         // if WKC is less than expected, or check state flag is set, check all slaves
         if (m_CurrentWKC.load() < m_ExpectedWKC
             || ec_group[m_CurrentGroup].docheckstate) {
-            // increment continuous error count
-            ++continuousErrorCount;
-
-            // // if error count exceeds max, stop the master
-            // if (continuousErrorCount > errorCountMax) {
-            //     std::cerr << "[EcatMaster::ecatCheck] Critical Link Loss Detected!" << std::endl;
-
-            //     m_Running = false;
-            //     break;
-            // }
-
             // clear check state flag
             ec_group[m_CurrentGroup].docheckstate = FALSE;
             // read state of all slaves
@@ -423,6 +405,24 @@ void EcatMaster::slavesCheck()
                           << " recovered" << std::endl;
             }
         }
+    }
+}
+
+// monitor loop to sdo read from slaves and update their status
+void EcatMaster::monitorLoop()
+{
+    constexpr int cycleTimeUs = 100'000; //  100ms
+
+    while (m_Running) {
+        for (int i = 1; i <= ec_slavecount; ++i) {
+            int16_t overloadRatio = 0;
+            int     size          = sizeof(overloadRatio);
+
+            if (ec_SDOread(i, cia402::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size, &overloadRatio, EC_TIMEOUTRXM) > 0) {
+                m_Slaves[i]->setOverloadRatio(overloadRatio);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(cycleTimeUs));
     }
 }
 

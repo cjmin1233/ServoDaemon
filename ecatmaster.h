@@ -48,6 +48,7 @@ private:
     bool reqOpState();
     void ecatCheck();
     void slavesCheck();
+    void monitorLoop();
 
     void setPosition(int slaveId, int32_t pos);
     void setHome(int slaveId);
@@ -62,6 +63,7 @@ private:
 
     std::thread m_Worker;
     std::thread m_ErrorHandler;
+    std::thread m_Monitor;
 
     char m_IOmap[4096] = {};
 
