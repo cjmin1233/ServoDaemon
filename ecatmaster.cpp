@@ -1,5 +1,5 @@
 #include "ecatmaster.h"
-#include "cia402.h"
+#include "servood.h"
 #include "servoconfig.h"
 #include "servol7nh.h"
 
@@ -419,7 +419,7 @@ void EcatMaster::monitorLoop()
             int16_t overloadRatio = 0;
             int     size          = sizeof(overloadRatio);
 
-            if (ec_SDOread(i, cia402::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size, &overloadRatio, EC_TIMEOUTRXM) > 0) {
+            if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size, &overloadRatio, EC_TIMEOUTRXM) > 0) {
                 m_Slaves[i]->setOverloadRatio(overloadRatio);
             }
         }

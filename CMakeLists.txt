@@ -17,7 +17,7 @@ add_executable(ServoDaemon
   ecatserver.h ecatserver.cpp
   ecatmaster.h ecatmaster.cpp
   ecatmanager.h ecatmanager.cpp
-  cia402.h
+  servood.h
   slave.h
   servol7nh.h
   servol7nh.cpp

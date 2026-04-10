@@ -1,5 +1,5 @@
-#ifndef CIA402_H
-#define CIA402_H
+#ifndef SERVOOD_H
+#define SERVOOD_H
 
 /**
  * CiA402 Standard Definitions for EtherCAT Servo Drives
@@ -8,7 +8,7 @@
  */
 #include <cstdint>
 
-namespace cia402 {
+namespace servoOD {
 
 // --- [1] Control Word Commands (0x6040) ---
 constexpr uint16_t CW_SHUTDOWN    = 0x0006; // Command: Ready to Switch On
@@ -177,4 +177,4 @@ constexpr int8_t HM_CURRENT_POS_AS_HOME        = 35; // Set current position as 
 
 } // namespace cia402
 
-#endif // CIA402_H
+#endif // SERVOOD_H

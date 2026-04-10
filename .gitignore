@@ -86,3 +86,7 @@ CMakeLists.txt.user*
 out/build/
 CMakePresets.json
 CMakeUserPresets.json
+
+# antigravity
+.cache
+.vscode

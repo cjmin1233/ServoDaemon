@@ -4,7 +4,7 @@
 
 #include <QDebug>
 
-#include "cia402.h"
+#include "servood.h"
 #include "servoconfig.h"
 #include "servol7nh.h"
 
@@ -103,19 +103,19 @@ int ServoL7NH::setup(uint16 slaveId)
     // etc...
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-    success &= sdoWrite(slaveId, cia402::IDX_POSITION_WINDOW, 0, cfg.positionWindow, "Position Window");
-    success &= sdoWrite(slaveId, cia402::IDX_QUICK_STOP_OPTION, 0, cfg.quickStopOption, "Quick Stop Option");
-    success &= sdoWrite(slaveId, cia402::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
-    success &= sdoWrite(slaveId, cia402::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
+    success &= sdoWrite(slaveId, servoOD::IDX_POSITION_WINDOW, 0, cfg.positionWindow, "Position Window");
+    success &= sdoWrite(slaveId, servoOD::IDX_QUICK_STOP_OPTION, 0, cfg.quickStopOption, "Quick Stop Option");
+    success &= sdoWrite(slaveId, servoOD::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
+    success &= sdoWrite(slaveId, servoOD::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
 
     int32_t posLimitMax  = calcPosLimit(slaveId);
-    success             &= sdoWrite(slaveId, cia402::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
+    success             &= sdoWrite(slaveId, servoOD::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
 
     // Mechanical Specs
     // *** effective after reboot ***
-    success &= sdoWrite(slaveId, cia402::IDX_ROTATION_DIRECTION, 0, cfg.rotationDirection, "Rotation Direction");
-    success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
-    success &= sdoWrite(slaveId, cia402::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
+    success &= sdoWrite(slaveId, servoOD::IDX_ROTATION_DIRECTION, 0, cfg.rotationDirection, "Rotation Direction");
+    success &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
+    success &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
 
     qInfo() << "[ServoL7NH::setup] Result: " << (success ? "Success" : "Failed");
 
@@ -127,19 +127,19 @@ int ServoL7NH::setupPDO(uint16 slaveId)
     int success = 1; // SOEM callbacks expect 1 on success
 
     // --- [STEP 1] RXPDO Mapping Content (0x1600) ---
-    uint16_t rxpdoIndex = cia402::IDX_RXPDO_MAPPING_1;
+    uint16_t rxpdoIndex = servoOD::IDX_RXPDO_MAPPING_1;
     uint8_t  zero       = 0;
 
     // Set mapping count to 0 to clear existing mappings
     success &= sdoWrite(slaveId, rxpdoIndex, 0, zero, "RxPDO Map Count 0");
 
     uint32_t rxpdoEntries[] = {
-        cia402::ENTRY_RX_CONTROL_WORD,
-        cia402::ENTRY_RX_MODES_OF_OP,
-        cia402::ENTRY_RX_TARGET_POSITION,
-        cia402::ENTRY_RX_TARGET_VELOCITY,
-        cia402::ENTRY_RX_TARGET_TORQUE,
-        cia402::ENTRY_RX_DIGITAL_OUTPUTS,
+        servoOD::ENTRY_RX_CONTROL_WORD,
+        servoOD::ENTRY_RX_MODES_OF_OP,
+        servoOD::ENTRY_RX_TARGET_POSITION,
+        servoOD::ENTRY_RX_TARGET_VELOCITY,
+        servoOD::ENTRY_RX_TARGET_TORQUE,
+        servoOD::ENTRY_RX_DIGITAL_OUTPUTS,
     };
     uint8_t entryCount = sizeof(rxpdoEntries) / sizeof(rxpdoEntries[0]);
 
@@ -151,19 +151,19 @@ int ServoL7NH::setupPDO(uint16 slaveId)
     success &= sdoWrite(slaveId, rxpdoIndex, 0, entryCount, "RxPDO Map Count");
 
     // --- [STEP 2] TXPDO Mapping Content (0x1A00) ---
-    uint16_t txpdoIndex = cia402::IDX_TXPDO_MAPPING_1;
+    uint16_t txpdoIndex = servoOD::IDX_TXPDO_MAPPING_1;
 
     // same as rxpdo: clear existing mappings first
     success &= sdoWrite(slaveId, txpdoIndex, 0, zero, "TxPDO Map Count 0");
 
     uint32_t txpdoEntries[] = {
-        cia402::ENTRY_TX_STATUS_WORD,
-        cia402::ENTRY_TX_MODES_OF_OP_DISP,
-        cia402::ENTRY_TX_ACTUAL_POSITION,
-        cia402::ENTRY_TX_ACTUAL_VELOCITY,
-        cia402::ENTRY_TX_ACTUAL_TORQUE,
-        cia402::ENTRY_TX_DIGITAL_INPUTS,
-        cia402::ENTRY_TX_ERROR_CODE,
+        servoOD::ENTRY_TX_STATUS_WORD,
+        servoOD::ENTRY_TX_MODES_OF_OP_DISP,
+        servoOD::ENTRY_TX_ACTUAL_POSITION,
+        servoOD::ENTRY_TX_ACTUAL_VELOCITY,
+        servoOD::ENTRY_TX_ACTUAL_TORQUE,
+        servoOD::ENTRY_TX_DIGITAL_INPUTS,
+        servoOD::ENTRY_TX_ERROR_CODE,
     };
     entryCount = sizeof(txpdoEntries) / sizeof(txpdoEntries[0]);
 
@@ -176,16 +176,16 @@ int ServoL7NH::setupPDO(uint16 slaveId)
 
     // --- [STEP 3] Sync Manager 2 (RxPDO) & 3 (TxPDO) Assignment ---
     // RxPDO
-    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, zero, "SM2 Assign Count 0");
-    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 1, rxpdoIndex, "SM2 Assign RxPDO");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, zero, "SM2 Assign Count 0");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 1, rxpdoIndex, "SM2 Assign RxPDO");
     entryCount  = 1;
-    success    &= sdoWrite(slaveId, cia402::IDX_SM2_RXPDO_ASSIGN, 0, entryCount, "SM2 Assign Count");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, entryCount, "SM2 Assign Count");
 
     // TxPDO
-    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, zero, "SM3 Assign Count 0");
-    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 1, txpdoIndex, "SM3 Assign TxPDO");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, zero, "SM3 Assign Count 0");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 1, txpdoIndex, "SM3 Assign TxPDO");
     entryCount  = 1;
-    success    &= sdoWrite(slaveId, cia402::IDX_SM3_TXPDO_ASSIGN, 0, entryCount, "SM3 Assign Count");
+    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, entryCount, "SM3 Assign Count");
 
     return success;
 }
@@ -197,12 +197,12 @@ int ServoL7NH::setupPosition(uint16 slaveId)
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Set position objects
-    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_VELOCITY, 0, cfg.profileVelocity, "Profile Velocity");
-    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
-    success &= sdoWrite(slaveId, cia402::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
-    success &= sdoWrite(slaveId, cia402::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
-    success &= sdoWrite(slaveId, cia402::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
-    success &= sdoWrite(slaveId, cia402::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
+    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_VELOCITY, 0, cfg.profileVelocity, "Profile Velocity");
+    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
+    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
+    success &= sdoWrite(slaveId, servoOD::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
+    success &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
+    success &= sdoWrite(slaveId, servoOD::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
 
     return success;
 }
@@ -214,11 +214,11 @@ int ServoL7NH::setupHoming(uint16 slaveId)
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Set homing objects
-    success &= sdoWrite(slaveId, cia402::IDX_HOME_OFFSET, 0, cfg.homeOffset, "Home Offset");
-    success &= sdoWrite(slaveId, cia402::IDX_HOMING_METHOD, 0, cfg.homingMethod, "Homing Method");
-    success &= sdoWrite(slaveId, cia402::IDX_HOMING_SPEED, 1, cfg.homingSpdSwitch, "Homing Speed Switch");
-    success &= sdoWrite(slaveId, cia402::IDX_HOMING_SPEED, 2, cfg.homingSpdZero, "Homing Speed Zero");
-    success &= sdoWrite(slaveId, cia402::IDX_HOMING_ACCEL, 0, cfg.homingAccel, "Homing Accel");
+    success &= sdoWrite(slaveId, servoOD::IDX_HOME_OFFSET, 0, cfg.homeOffset, "Home Offset");
+    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_METHOD, 0, cfg.homingMethod, "Homing Method");
+    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 1, cfg.homingSpdSwitch, "Homing Speed Switch");
+    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 2, cfg.homingSpdZero, "Homing Speed Zero");
+    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_ACCEL, 0, cfg.homingAccel, "Homing Accel");
 
     return success;
 }
@@ -230,13 +230,13 @@ int ServoL7NH::setupTorque(uint16 slaveId)
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Setup torque objects
-    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_LIMIT_FUNCTION, 0, cfg.torqueLimitFunc, "Torque Limit Func");
-    success &= sdoWrite(slaveId, cia402::IDX_SPEED_LIMIT_FUNCTION, 0, cfg.speedLimitFunc, "Speed Limit Func");
-    success &= sdoWrite(slaveId, cia402::IDX_POSITIVE_TORQUE_LIMIT, 0, cfg.posTorqueLimit, "Positive Torque Limit");
-    success &= sdoWrite(slaveId, cia402::IDX_NEGATIVE_TORQUE_LIMIT, 0, cfg.negTorqueLimit, "Negative Torque Limit");
-    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_SPEED_LIMIT, 0, cfg.torqueSpeedLimit, "Torque Speed Limit");
-    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_SLOPE, 0, cfg.torqueSlope, "Torque Slope");
-    success &= sdoWrite(slaveId, cia402::IDX_TORQUE_OFFSET, 0, cfg.torqueOffset, "Torque Offset");
+    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_LIMIT_FUNCTION, 0, cfg.torqueLimitFunc, "Torque Limit Func");
+    success &= sdoWrite(slaveId, servoOD::IDX_SPEED_LIMIT_FUNCTION, 0, cfg.speedLimitFunc, "Speed Limit Func");
+    success &= sdoWrite(slaveId, servoOD::IDX_POSITIVE_TORQUE_LIMIT, 0, cfg.posTorqueLimit, "Positive Torque Limit");
+    success &= sdoWrite(slaveId, servoOD::IDX_NEGATIVE_TORQUE_LIMIT, 0, cfg.negTorqueLimit, "Negative Torque Limit");
+    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SPEED_LIMIT, 0, cfg.torqueSpeedLimit, "Torque Speed Limit");
+    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SLOPE, 0, cfg.torqueSlope, "Torque Slope");
+    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_OFFSET, 0, cfg.torqueOffset, "Torque Offset");
 
     return success;
 }
@@ -248,33 +248,33 @@ void ServoL7NH::processData()
     const auto* txpdo      = ptrTxPDO();
     const auto& statusWord = txpdo->status_word;
 
-    if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED) {
-        const auto& currentMode = static_cast<cia402::Mode>(txpdo->mode_disp);
+    if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_OP_ENABLED) {
+        const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
 
         // main operation
         switch (currentMode) {
-        case cia402::Mode::None:
+        case servoOD::Mode::None:
             break; // No operation mode selected
-        case cia402::Mode::PP: {
+        case servoOD::Mode::PP: {
             processPP(rxpdo, txpdo);
 
             break;
         }
-        case cia402::Mode::PV:
+        case servoOD::Mode::PV:
             break; // Profile Velocity
-        case cia402::Mode::PT: {
+        case servoOD::Mode::PT: {
             processPT(rxpdo, txpdo);
 
             break;
         }
-        case cia402::Mode::HM: {
+        case servoOD::Mode::HM: {
             processHM(rxpdo, txpdo);
 
             break;
         }
-        case cia402::Mode::CSP:
-        case cia402::Mode::CST:
-        case cia402::Mode::CSV:
+        case servoOD::Mode::CSP:
+        case servoOD::Mode::CST:
+        case servoOD::Mode::CSV:
             break;
         default:
             qInfo() << "[ServoL7NH::processData] invalid mode : " << static_cast<int8_t>(currentMode);
@@ -311,7 +311,7 @@ void ServoL7NH::stop()
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->control_word = cia402::CW_SHUTDOWN; // 0x0006
+    rxpdo->control_word = servoOD::CW_SHUTDOWN; // 0x0006
 }
 
 void ServoL7NH::setTargetPosition(float ratio)
@@ -327,12 +327,12 @@ void ServoL7NH::setTargetPosition(int32_t pos)
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode             = static_cast<int8_t>(cia402::Mode::PP);
+    rxpdo->mode             = static_cast<int8_t>(servoOD::Mode::PP);
     rxpdo->target_position  = pos * m_pulsePerMm;             // Calculate target position
     rxpdo->target_torque    = 0;                              // Clear target torque
-    rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);         // Clear halt bit
-    rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);      // Absolute move
-    rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_HALT);         // Clear halt bit
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
     m_flagNewSetpoint = true;
     m_isSettling      = false;
@@ -344,12 +344,12 @@ void ServoL7NH::setHome()
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode             = static_cast<int8_t>(cia402::Mode::HM); // Set to Homing Mode
+    rxpdo->mode             = static_cast<int8_t>(servoOD::Mode::HM); // Set to Homing Mode
     rxpdo->target_position  = 0;                                     // Set target position 0...just in case
     rxpdo->target_torque    = 0;                                     // Clear target torque
-    rxpdo->control_word    &= ~(cia402::CW_BIT_HALT);                // Clear halt bit
-    rxpdo->control_word    &= ~(cia402::CW_BIT_ABS_REL);             // Absolute move
-    rxpdo->control_word    &= ~(cia402::CW_BIT_NEW_SETPOINT);        // Clear homing start bit
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_HALT);                // Clear halt bit
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_ABS_REL);             // Absolute move
+    rxpdo->control_word    &= ~(servoOD::CW_BIT_NEW_SETPOINT);        // Clear homing start bit
 
     m_flagHomingStart = true;
     m_isSettling      = false;
@@ -361,8 +361,8 @@ void ServoL7NH::setTorque(int16_t torque)
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode          = static_cast<int8_t>(cia402::Mode::PT);
-    rxpdo->control_word &= ~(cia402::CW_BIT_HALT); // Clear halt bit
+    rxpdo->mode          = static_cast<int8_t>(servoOD::Mode::PT);
+    rxpdo->control_word &= ~(servoOD::CW_BIT_HALT); // Clear halt bit
                                                    // rxpdo->target_torque  = torque;
     m_targetTorque = torque;                       // Store target torque to be applied in processPT
 
@@ -377,7 +377,7 @@ const bool ServoL7NH::isRunning() const
 
     const auto& statusWord = txpdo->status_word;
 
-    return (statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_OP_ENABLED;
+    return (statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_OP_ENABLED;
 }
 
 void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
@@ -407,12 +407,12 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     const uint16_t& statusWord  = txpdo->status_word;
 
     // Fault Reset
-    if ((statusWord & cia402::SW_STATE_MASK1) == cia402::SW_STATE_FAULT) {
+    if ((statusWord & servoOD::SW_STATE_MASK1) == servoOD::SW_STATE_FAULT) {
         qWarning() << "[ServoL7NH::stateCheck] Servo FAULT Detected!";
 
         // Set control word
         controlWord &= bit0F;                  // clear bit 4 to 15
-        controlWord |= cia402::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
+        controlWord |= servoOD::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
 
         // Update status
         m_Status.hasError  = true;
@@ -426,7 +426,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         return;
     } else {
         // Set control word
-        controlWord &= ~(cia402::CW_FAULT_RESET); // bit 7: Fault reset(1 -> 0)
+        controlWord &= ~(servoOD::CW_FAULT_RESET); // bit 7: Fault reset(1 -> 0)
 
         // Update status
         m_Status.hasError  = false;
@@ -437,28 +437,28 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
-    if ((statusWord & cia402::SW_STATE_MASK1) == cia402::SW_STATE_SWITCH_ON_DISABLED) {
-        controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
+    if ((statusWord & servoOD::SW_STATE_MASK1) == servoOD::SW_STATE_SWITCH_ON_DISABLED) {
+        controlWord = controlWord & bitF0 | servoOD::CW_SHUTDOWN;
 
         m_stateCheckCounter = stateCheckCycleCounter;
     }
     // from Ready to Switch On to Switched On
-    else if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_READY_SWITCH_ON) {
-        controlWord = controlWord & bitF0 | cia402::CW_SWITCH_ON;
+    else if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_READY_SWITCH_ON) {
+        controlWord = controlWord & bitF0 | servoOD::CW_SWITCH_ON;
 
         m_stateCheckCounter = stateCheckCycleCounter;
     }
     // from Switched On to Operation Enabled
-    else if ((statusWord & cia402::SW_STATE_MASK2) == cia402::SW_STATE_SWITCHED_ON) {
-        if ((controlWord & bit0F) == cia402::CW_ENABLE_OP) {
+    else if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_SWITCHED_ON) {
+        if ((controlWord & bit0F) == servoOD::CW_ENABLE_OP) {
             // Already tried to enable op. Drop to shutdown
             // controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
-            controlWord = cia402::CW_SHUTDOWN; // clear other bits
+            controlWord = servoOD::CW_SHUTDOWN; // clear other bits
 
             qInfo() << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown";
         } else {
             // Enable operation
-            controlWord = controlWord & bitF0 | cia402::CW_ENABLE_OP;
+            controlWord = controlWord & bitF0 | servoOD::CW_ENABLE_OP;
         }
 
         // Longer delay before next check
@@ -469,7 +469,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile position mode
-    static constexpr int8_t MODE_PP = static_cast<int8_t>(cia402::Mode::PP);
+    static constexpr int8_t MODE_PP = static_cast<int8_t>(servoOD::Mode::PP);
     // operated mode should be already set to PP
     if (rxpdo->mode != MODE_PP) {
         return;
@@ -478,17 +478,17 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isNewSetpointRequested = controlWord & cia402::CW_BIT_NEW_SETPOINT;
-    const bool isSetpointAck          = statusWord & cia402::SW_BIT_SET_POINT_ACK;
+    const bool isNewSetpointRequested = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
+    const bool isSetpointAck          = statusWord & servoOD::SW_BIT_SET_POINT_ACK;
 
     if (isNewSetpointRequested) {
         if (isSetpointAck) {
             // new setpoint requested and acknowledged
-            controlWord &= ~(cia402::CW_BIT_NEW_SETPOINT);
+            controlWord &= ~(servoOD::CW_BIT_NEW_SETPOINT);
         }
     } else if (m_flagNewSetpoint) {
         // request new setpoint
-        controlWord |= cia402::CW_BIT_NEW_SETPOINT;
+        controlWord |= servoOD::CW_BIT_NEW_SETPOINT;
         // flag off
         m_flagNewSetpoint = false;
     }
@@ -512,7 +512,7 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
 void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile torque mode
-    static constexpr int8_t MODE_PT = static_cast<int8_t>(cia402::Mode::PT);
+    static constexpr int8_t MODE_PT = static_cast<int8_t>(servoOD::Mode::PT);
     // operated mode should be already set to PT
     if (rxpdo->mode != MODE_PT) {
         return;
@@ -533,7 +533,7 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Homing mode
-    static constexpr int8_t MODE_HM = static_cast<int8_t>(cia402::Mode::HM);
+    static constexpr int8_t MODE_HM = static_cast<int8_t>(servoOD::Mode::HM);
     // operated mode should be already set to HM
     if (rxpdo->mode != MODE_HM) {
         return;
@@ -542,16 +542,16 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isHomingStart    = controlWord & cia402::CW_BIT_NEW_SETPOINT;
-    const bool isHomingAttained = statusWord & cia402::SW_BIT_HOMING_ATTAINED;
-    const bool isHomingError    = statusWord & cia402::SW_BIT_HOMING_ERROR;
+    const bool isHomingStart    = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
+    const bool isHomingAttained = statusWord & servoOD::SW_BIT_HOMING_ATTAINED;
+    const bool isHomingError    = statusWord & servoOD::SW_BIT_HOMING_ERROR;
 
     // Homing error handling
     if (isHomingError) {
         qInfo() << "[ServoL7NH::processHM] homing error occurred, try to restart homing...";
 
         // restart homing
-        controlWord       &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        controlWord       &= ~(servoOD::CW_BIT_NEW_SETPOINT);
         m_flagHomingStart  = true;
 
         return;
@@ -560,7 +560,7 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     // Homing start request, but not yet started
     if (m_flagHomingStart && !isHomingStart) {
         // start homing
-        controlWord       |= cia402::CW_BIT_NEW_SETPOINT;
+        controlWord       |= servoOD::CW_BIT_NEW_SETPOINT;
         m_flagHomingStart  = false; // Reset homing flag
 
         return;
@@ -602,10 +602,10 @@ void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
         // // Reset mode
         // rxpdo->mode = 0;
 
-        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        controlWord  &= ~(servoOD::CW_BIT_NEW_SETPOINT);
         m_isSettling  = false;
 
-        controlWord |= cia402::CW_BIT_HALT; // Turn on halt bit to stop
+        controlWord |= servoOD::CW_BIT_HALT; // Turn on halt bit to stop
     }
     // Failure: Timeout occurred before becoming stable
     else if (m_settlingTimeout <= 0) {
@@ -614,7 +614,7 @@ void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
         // // Reset mode
         // rxpdo->mode = 0;
 
-        controlWord  &= ~(cia402::CW_BIT_NEW_SETPOINT);
+        controlWord  &= ~(servoOD::CW_BIT_NEW_SETPOINT);
         m_isSettling  = false;
     }
 }
