@@ -22,6 +22,7 @@ add_executable(ServoDaemon
   servol7nh.h
   servol7nh.cpp
   servoconfig.h
+  windowsservice.h windowsservice.cpp
 )
 target_link_libraries(ServoDaemon PRIVATE
   Qt${QT_VERSION_MAJOR}::Core
@@ -45,7 +46,7 @@ target_link_directories(${PROJECT_NAME} PRIVATE
     ${SOEM_DIR}/oshw/win32/wpcap/Lib/x64
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC
+target_link_libraries(${PROJECT_NAME} PRIVATE
     soem
     Packet
     wpcap
@@ -59,6 +60,10 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     WIN32_LEAN_AND_MEAN
 )
 # endregion
+
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS ServoDaemon

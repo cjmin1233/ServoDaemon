@@ -1,10 +1,14 @@
+#include "windowsservice.h"
 #include <QCoreApplication>
-#include <QDir>
-#include <QFile>
 
-#include "../CommonConfig.h"
-#include "ecatserver.h"
+#include <iostream>
+// #include <QDir>
+// #include <QFile>
 
+// #include "../CommonConfig.h"
+// #include "ecatserver.h"
+
+#if 0
 /// <summary>
 /// Qt custom message handler for logging
 /// </summary>
@@ -35,20 +39,55 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QS
         outFile.close();
     }
 }
+#endif
 
 int main(int argc, char* argv[])
 {
-#ifndef QT_DEBUG
-    // install custom message handler for logging
-    qInstallMessageHandler(myMessageOutput);
-#endif
+    QString        serviceName = "ServoServiceDemo";
+    WindowsService service(serviceName);
 
-    QCoreApplication a(argc, argv);
+    if (argc > 1) {
+        QString arg(argv[1]);
+        if (arg == "-install" || arg == "--install") {
+            // Need a QCoreApplication to resolve applicationFilePath for installation
+            QCoreApplication a(argc, argv);
+            if (service.install()) {
+                std::cout << "Service installed successfully.\n";
+                return 0;
+            } else {
+                std::cout << "Failed to install service.\n";
+                return 1;
+            }
+        } else if (arg == "-uninstall" || arg == "--uninstall") {
+            if (service.uninstall()) {
+                std::cout << "Service uninstalled successfully.\n";
+                return 0;
+            } else {
+                std::cout << "Failed to uninstall service.\n";
+                return 1;
+            }
+        }
+    }
 
-    qDebug() << "---------- Servo Daemon Started ----------";
+    if (!service.run()) {
+        std::cout << "This application is a Windows Service and must be run via the Service Control Manager.\n";
+        std::cout << "To install it, run: " << argv[0] << " -install\n";
+        return 1;
+    }
 
-    EcatServer* server = new EcatServer(&a);
-    server->start();
+    return 0;
 
-    return a.exec();
+    // #ifndef QT_DEBUG
+    //     // install custom message handler for logging
+    //     qInstallMessageHandler(myMessageOutput);
+    // #endif
+
+    //     QCoreApplication a(argc, argv);
+
+    //     qDebug() << "---------- Servo Daemon Started ----------";
+
+    //     EcatServer* server = new EcatServer(&a);
+    //     server->start();
+
+    //     return a.exec();
 }
