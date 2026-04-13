@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 
+// 서비스 관리를 위한 정적 멤버 변수 초기화
 QString               WindowsService::m_serviceName   = "";
 SERVICE_STATUS_HANDLE WindowsService::m_statusHandle  = nullptr;
 SERVICE_STATUS        WindowsService::m_serviceStatus = { 0 };
@@ -16,23 +17,26 @@ SERVICE_STATUS        WindowsService::m_serviceStatus = { 0 };
 /// <param name="type"> Type of message </param>
 /// <param name="context"> Message context </param>
 /// <param name="msg"> Message content </param>
+/**
+ * @brief Qt 메시지 핸들러 - qDebug() 등의 출력을 외부 파일로 저장
+ */
 void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    // create logs directory if not exists
+    // 실행 파일 경로 아래 logs 폴더 생성
     QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";
     QDir    logDir(logDirPath);
     if (!logDir.exists()) logDir.mkpath(".");
 
-    // define log file path based on current date
+    // 날짜별 로그 파일명 생성 (예: 2026-04-13_log.txt)
     QString dateString  = QDateTime::currentDateTime().toString("yyyy-MM-dd");
     QString logFilePath = logDirPath + QString("/%1_log.txt").arg(dateString);
 
     QFile outFile(logFilePath);
-    if (outFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
+    if (outFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         QTextStream ts(&outFile);
         QString     timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
 
-        // determine message type string
+        // 메시지 타입 구분
         QString typeStr = "INFO ";
         if (type == QtCriticalMsg || type == QtFatalMsg) typeStr = "ERROR";
 
@@ -46,6 +50,9 @@ WindowsService::WindowsService(const QString& serviceName)
     m_serviceName = serviceName;
 }
 
+/**
+ * @brief 서비스를 Windows 시스템에 등록(설치)
+ */
 bool WindowsService::install()
 {
     SC_HANDLE scm = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
@@ -83,6 +90,9 @@ bool WindowsService::install()
     return true;
 }
 
+/**
+ * @brief 서비스를 Windows 시스템에서 제거
+ */
 bool WindowsService::uninstall()
 {
     SC_HANDLE scm = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
@@ -111,6 +121,9 @@ bool WindowsService::uninstall()
     return true;
 }
 
+/**
+ * @brief 서비스를 시작하고 제어 관리자와 통신 시작
+ */
 bool WindowsService::run()
 {
     std::wstring         serviceName     = m_serviceName.toStdWString();
@@ -122,7 +135,10 @@ bool WindowsService::run()
     return StartServiceCtrlDispatcherW(dispatchTable);
 }
 
-void WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
+/**
+ * @brief 서비스의 실제 진입점 (Windows SCM에 의해 호출됨)
+ */
+void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
 {
     m_statusHandle = RegisterServiceCtrlHandlerW(
         m_serviceName.toStdWString().c_str(),
@@ -133,11 +149,14 @@ void WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
     m_serviceStatus.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
     m_serviceStatus.dwServiceSpecificExitCode = 0;
 
+    // 서비스가 시작 중임을 보고
     setServiceStatus(SERVICE_START_PENDING);
 
     int              argc   = 1;
-    char             arg0[] = "ServoServiceDemo";
-    char*            argv[] = { arg0, nullptr };
+    QByteArray       nameBa = m_serviceName.toLocal8Bit();
+    char*            argv[] = { nameBa.data(), nullptr };
+    
+    // Qt 이벤트 루프를 위한 Application 객체 생성
     QCoreApplication a(argc, argv);
 
     setServiceStatus(SERVICE_RUNNING);
@@ -149,16 +168,28 @@ void WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
 
     qDebug() << "---------- Servo Daemon Started ----------";
 
+    // EtherCAT 서버 인스턴스 생성 및 시작
     EcatServer* server = new EcatServer(&a);
-    server->start();
+    if (server) {
+        server->start();
+    }
 
+    // Qt 이벤트 루프 시작 (여기서 블록됨)
     a.exec();
+
+    // Gracefully stop the EtherCAT server before stopping the service
+    if (server) {
+        server->stop();
+    }
 
     setServiceStatus(SERVICE_STOP_PENDING);
     setServiceStatus(SERVICE_STOPPED);
 }
 
-void WindowsService::serviceCtrlHandler(DWORD ctrlCode)
+/**
+ * @brief 서비스 상태 변경 요청 처리 (중지, 셧다운 등)
+ */
+void WINAPI WindowsService::serviceCtrlHandler(DWORD ctrlCode)
 {
     switch (ctrlCode) {
     case SERVICE_CONTROL_STOP:
@@ -173,6 +204,9 @@ void WindowsService::serviceCtrlHandler(DWORD ctrlCode)
     }
 }
 
+/**
+ * @brief SCM에 현재 서비스의 상태를 보고
+ */
 void WindowsService::setServiceStatus(DWORD currentState, DWORD win32ExitCode, DWORD waitHint)
 {
     static DWORD checkPoint         = 1;
