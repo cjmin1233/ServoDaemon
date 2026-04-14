@@ -12,6 +12,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network)
 
+include(FetchContent)
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.14.1
+)
+FetchContent_MakeAvailable(spdlog)
+
 add_executable(ServoDaemon
   main.cpp
   ecatserver.h ecatserver.cpp
@@ -23,10 +31,12 @@ add_executable(ServoDaemon
   servol7nh.cpp
   servoconfig.h
   windowsservice.h windowsservice.cpp
+  Logger.h Logger.cpp
 )
 target_link_libraries(ServoDaemon PRIVATE
   Qt${QT_VERSION_MAJOR}::Core
   Qt${QT_VERSION_MAJOR}::Network
+  spdlog::spdlog
 )
 
 # region soem
@@ -63,6 +73,21 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+
+    # windeployqt를 찾아 빌드 후 자동으로 Qt 라이브러리를 배포하도록 설정
+    get_target_property(_qmake_loc Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_loc}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                    --no-compiler-runtime
+                    --verbose 0
+                    "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Deploying Qt dependencies for ${PROJECT_NAME} using windeployqt..."
+        )
+    endif()
 endif()
 
 include(GNUInstallDirs)

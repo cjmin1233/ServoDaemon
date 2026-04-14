@@ -1,49 +1,15 @@
 #include "windowsservice.h"
 #include "ecatserver.h"
+#include "Logger.h"
 
 #include <QCoreApplication>
 #include <QDebug>
-#include <QDir>
-#include <QFile>
 
 // 서비스 관리를 위한 정적 멤버 변수 초기화
 QString               WindowsService::m_serviceName   = "";
 SERVICE_STATUS_HANDLE WindowsService::m_statusHandle  = nullptr;
 SERVICE_STATUS        WindowsService::m_serviceStatus = { 0 };
 
-/// <summary>
-/// Qt custom message handler for logging
-/// </summary>
-/// <param name="type"> Type of message </param>
-/// <param name="context"> Message context </param>
-/// <param name="msg"> Message content </param>
-/**
- * @brief Qt 메시지 핸들러 - qDebug() 등의 출력을 외부 파일로 저장
- */
-void myMessageOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
-{
-    // 실행 파일 경로 아래 logs 폴더 생성
-    QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";
-    QDir    logDir(logDirPath);
-    if (!logDir.exists()) logDir.mkpath(".");
-
-    // 날짜별 로그 파일명 생성 (예: 2026-04-13_log.txt)
-    QString dateString  = QDateTime::currentDateTime().toString("yyyy-MM-dd");
-    QString logFilePath = logDirPath + QString("/%1_log.txt").arg(dateString);
-
-    QFile outFile(logFilePath);
-    if (outFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        QTextStream ts(&outFile);
-        QString     timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
-
-        // 메시지 타입 구분
-        QString typeStr = "INFO ";
-        if (type == QtCriticalMsg || type == QtFatalMsg) typeStr = "ERROR";
-
-        ts << "[" << timeStr << "] [" << typeStr << "] " << msg << Qt::endl;
-        outFile.close();
-    }
-}
 
 WindowsService::WindowsService(const QString& serviceName)
 {
@@ -152,18 +118,16 @@ void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
     // 서비스가 시작 중임을 보고
     setServiceStatus(SERVICE_START_PENDING);
 
-    int              argc   = 1;
-    QByteArray       nameBa = m_serviceName.toLocal8Bit();
-    char*            argv[] = { nameBa.data(), nullptr };
-    
+    int        argc   = 1;
+    QByteArray nameBa = m_serviceName.toLocal8Bit();
+    char*      argv[] = { nameBa.data(), nullptr };
+
     // Qt 이벤트 루프를 위한 Application 객체 생성
     QCoreApplication a(argc, argv);
 
-    setServiceStatus(SERVICE_RUNNING);
-
 #ifndef QT_DEBUG
     // install custom message handler for logging
-    qInstallMessageHandler(myMessageOutput);
+    qInstallMessageHandler(Logger::qtMessageHandler);
 #endif
 
     qDebug() << "---------- Servo Daemon Started ----------";
@@ -173,6 +137,8 @@ void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
     if (server) {
         server->start();
     }
+
+    setServiceStatus(SERVICE_RUNNING);
 
     // Qt 이벤트 루프 시작 (여기서 블록됨)
     a.exec();

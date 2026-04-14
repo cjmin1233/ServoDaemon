@@ -1,8 +1,9 @@
+#include "Logger.h"
 #include "windowsservice.h"
 #include <QCoreApplication>
 #include <iostream>
-#include <windows.h>
 #include <shlobj.h>
+#include <windows.h>
 
 /**
  * @brief 현재 프로세스가 관리자 권한으로 실행 중인지 확인하는 헬퍼 함수
@@ -15,6 +16,11 @@ bool isUserAdmin()
 
 int main(int argc, char* argv[])
 {
+    QCoreApplication a(argc, argv);
+
+    // Initialize logging system (Async + Rotating)
+    Logger::init();
+
     // 서비스의 기본 이름 정의
     QString        serviceName = "ServoServiceDemo";
     WindowsService service(serviceName);
@@ -23,7 +29,7 @@ int main(int argc, char* argv[])
     if (argc > 1) {
         QString arg(argv[1]);
         if (arg == "-install" || arg == "--install" || arg == "-uninstall" || arg == "--uninstall") {
-            
+
             // 서비스 설치/제거는 반드시 관리자 권한이 필요함
             if (!isUserAdmin()) {
                 std::cout << "오류: 서비스 설치 또는 제거를 위해서는 관리자 권한이 필요합니다.\n";
@@ -32,8 +38,6 @@ int main(int argc, char* argv[])
             }
 
             if (arg == "-install" || arg == "--install") {
-                // 설치 시 현재 실행 파일의 경로를 확보하기 위해 QCoreApplication 인스턴스 필요
-                QCoreApplication a(argc, argv);
                 if (service.install()) {
                     std::cout << "서비스가 성공적으로 설치되었습니다.\n";
                     return 0;
