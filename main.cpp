@@ -1,4 +1,5 @@
 #include "Logger.h"
+#include "configloader.h"
 #include "windowsservice.h"
 #include <QCoreApplication>
 #include <iostream>
@@ -20,6 +21,13 @@ int main(int argc, char* argv[])
 
     // Initialize logging system (Async + Rotating)
     Logger::init();
+
+    // JSON 설정 파일 로드 (없으면 컴파일 기본값 유지)
+    const QString cfgPath = ConfigLoader::defaultConfigPath();
+    if (!ConfigLoader::load(cfgPath)) {
+        // 첫 실행 시 JSON 템플릿 자동 생성
+        ConfigLoader::save(cfgPath);
+    }
 
     // Define the default name of the service
     QString        serviceName = "ServoServiceDemo";

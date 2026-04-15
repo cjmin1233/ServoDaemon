@@ -6,7 +6,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
@@ -29,7 +29,8 @@ add_executable(ServoDaemon
   slave.h
   servol7nh.h
   servol7nh.cpp
-  servoconfig.h
+  servoconfig.h servoconfig.cpp
+  configloader.h configloader.cpp
   windowsservice.h windowsservice.cpp
   Logger.h Logger.cpp
 )
