@@ -50,6 +50,32 @@ bool WindowsService::install()
         return false;
     }
 
+    // 복구 옵션 설정 (장애 시 자동 재시작)
+    SERVICE_FAILURE_ACTIONS failureActions;
+    SC_ACTION actions[3];
+
+    // 1차 실패: 재시작 (60초 대기)
+    actions[0].Type = SC_ACTION_RESTART;
+    actions[0].Delay = 60000; // 60 seconds
+    // 2차 실패: 재시작 (60초 대기)
+    actions[1].Type = SC_ACTION_RESTART;
+    actions[1].Delay = 60000;
+    // 3차 이후: 아무 작업 안 함 (무한 루프 방지)
+    actions[2].Type = SC_ACTION_NONE;
+    actions[2].Delay = 0;
+
+    failureActions.dwResetPeriod = 86400; // 24시간 후 실패 횟수 초기화
+    failureActions.lpRebootMsg = nullptr;
+    failureActions.lpCommand = nullptr;
+    failureActions.cActions = 3;
+    failureActions.lpsaActions = actions;
+
+    if (!ChangeServiceConfig2(service, SERVICE_CONFIG_FAILURE_ACTIONS, &failureActions)) {
+        qWarning() << "Failed to set service recovery options. (Error:" << GetLastError() << ")";
+    } else {
+        qDebug() << "Service recovery options configured successfully.";
+    }
+
     qDebug() << "Service installed successfully.";
     CloseServiceHandle(service);
     CloseServiceHandle(scm);
