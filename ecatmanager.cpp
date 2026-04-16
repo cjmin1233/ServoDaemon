@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QThread>
+#include <QTimer>
 
 EcatManager::EcatManager(QObject* parent)
     : QObject { parent }
@@ -59,15 +60,15 @@ void EcatManager::reconnectMaster()
     // disconnect first to ensure a clean state
     disconnectMaster();
 
-    // wait for a moment to allow hardware/drivers to settle
-    QThread::msleep(100);
-
-    // try to connect again using the main connection logic
-    if (connectMaster()) {
-        qInfo() << "[EcatManager::reconnectMaster] Reconnection successful!";
-    } else {
-        qWarning() << "[EcatManager::reconnectMaster] Reconnection failed, will retry later...";
-    }
+    // wait for a moment to allow hardware/drivers to settle without blocking the event loop
+    QTimer::singleShot(100, this, [this]() {
+        // try to connect again using the main connection logic
+        if (connectMaster()) {
+            qInfo() << "[EcatManager::reconnectMaster] Reconnection successful!";
+        } else {
+            qWarning() << "[EcatManager::reconnectMaster] Reconnection failed, will retry later...";
+        }
+    });
 }
 
 void EcatManager::disconnectMaster()
