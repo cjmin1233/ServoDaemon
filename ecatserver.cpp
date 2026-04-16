@@ -142,7 +142,7 @@ void EcatServer::onClientReadyread()
     Command cmd;
     in >> cmd;
 
-    processCommand(in, cmd);
+    processCommand(socket, in, cmd);
 
     // if (m_currentClient == nullptr) return;
 
@@ -197,33 +197,31 @@ void EcatServer::onTimerTick()
         return;
     }
 
-    // // If there is a connected client, send servo status
-    // // TODO: send status to all connected clients
-    // if (m_currentClient && m_currentClient->state() == QAbstractSocket::ConnectedState) {
-    //     int servoId = 1; // temporary
+    if (m_clients.isEmpty()) return;
 
-    //     const ServoStatus& status = m_ecatManager->getServoStatus(servoId);
-    //     QByteArray         block;
-    //     QDataStream        out(&block, QIODevice::WriteOnly);
+    // Send status of all valid servos to all connected clients
+    int totalSlaves = m_ecatManager->getSlaveCount();
+    for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
+        const ServoStatus& status = m_ecatManager->getServoStatus(slaveId);
 
-    //     out.setVersion(QDataStream::Qt_6_5);
+        QByteArray block;
+        QDataStream out(&block, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_6_5);
 
-    //     // 1. size placeholder, actual size will be written later
-    //     out << (quint32)0;
-    //     out << status.position << status.velocity;
+        out << (quint32)0;
+        out << (quint32)MessageType::ServoStatusUpdate;
+        out << (quint16)slaveId;
+        out << status;
 
-    //     // 2. go back and write the actual size
-    //     out.device()->seek(0);
-    //     out << (quint32)(block.size() - sizeof(quint32));
+        out.device()->seek(0);
+        out << (quint32)(block.size() - sizeof(quint32));
 
-    //     // 3. send the data block to client
-    //     m_currentClient->write(block);
-    //     // m_currentClient->write("server tick");
-
-    //     // wait until all data is written
-    //     m_currentClient->waitForBytesWritten();
-    //     m_currentClient->flush();
-    // }
+        for (QTcpSocket* client : m_clients) {
+            if (client->state() == QAbstractSocket::ConnectedState) {
+                client->write(block);
+            }
+        }
+    }
 }
 
 void EcatServer::startTimer()
@@ -235,11 +233,36 @@ void EcatServer::startTimer()
     }
 }
 
-void EcatServer::processCommand(QDataStream& in, const Command& cmd)
+void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in, const Command& cmd)
 {
     if (!in.commitTransaction()) {
         return;
     }
 
-    m_ecatManager->processCommand(cmd);
+    ErrorReason result = m_ecatManager->processCommand(cmd);
+
+    CommandResponse response;
+    response.slaveId = cmd.slaveId;
+    response.cmdType = cmd.cmdType;
+    
+    if (result == ErrorReason::None) {
+        response.status = ResponseStatus::ACK;
+    } else {
+        response.status = ResponseStatus::NACK;
+        response.reason = result;
+    }
+
+    QByteArray block;
+    QDataStream out(&block, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_6_5);
+
+    out << (quint32)0; // Size placeholder
+    out << (quint32)MessageType::CommandResponse;
+    out << response;
+
+    out.device()->seek(0);
+    out << (quint32)(block.size() - sizeof(quint32)); // Write actual size
+
+    socket->write(block);
+    socket->flush();
 }

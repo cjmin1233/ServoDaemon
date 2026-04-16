@@ -26,7 +26,7 @@ public:
 
     // bool checkInterface();
 
-    void processCommand(const Command& cmd);
+    ErrorReason processCommand(const Command& cmd);
 
 private:
     void searchValidAdapter();

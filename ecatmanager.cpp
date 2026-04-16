@@ -79,9 +79,9 @@ void EcatManager::disconnectMaster()
     m_Master.stop();
 }
 
-void EcatManager::processCommand(const Command& cmd)
+ErrorReason EcatManager::processCommand(const Command& cmd)
 {
-    m_Master.processCommand(cmd);
+    return m_Master.processCommand(cmd);
 }
 
 // search for a valid EtherCAT adapter and update m_ifname

@@ -177,37 +177,48 @@ void EcatMaster::setTorque(int slaveId, int32_t torque)
     servo->setTorque(torque);
 }
 
-void EcatMaster::processCommand(const Command& cmd)
+ErrorReason EcatMaster::processCommand(const Command& cmd)
 {
+    if (!m_Running) {
+        return ErrorReason::MasterOffline;
+    }
+
+    ServoL7NH* servo = getPtrServo(cmd.slaveId);
+    if (servo == nullptr) {
+        return ErrorReason::InvalidSlaveId;
+    }
+
+    if (servo->getStatus().hasError) {
+        return ErrorReason::ServoFault;
+    }
+
     switch (cmd.cmdType) {
     case CommandType::MovePosition: {
         qDebug() << "[EcatMaster::processCommand] Command Received: MovePosition, position:" << cmd.value;
-
         setPosition(cmd.slaveId, cmd.value);
         break;
     }
     case CommandType::SetHome: {
         qDebug() << "[EcatMaster::processCommand] Command Received: SetHome";
-
         setHome(cmd.slaveId);
         break;
     }
     case CommandType::SetTorque: {
         qDebug() << "[EcatMaster::processCommand] Command Received: SetTorque, torque:" << cmd.value;
-
         setTorque(cmd.slaveId, cmd.value);
         break;
     }
     case CommandType::StopServo: {
         qDebug() << "[EcatMaster::processCommand] Command Received: StopServo";
-
-        //
+        servo->stop(); // Implemented StopServo
         break;
     }
     default:
         qWarning() << "[EcatMaster::processCommand] Unknown Command Received:" << (quint32)cmd.cmdType;
         break;
     }
+
+    return ErrorReason::None;
 }
 
 // if valid servo, return its status; else return empty status

@@ -30,7 +30,7 @@ public:
     bool start();
     void stop();
 
-    void processCommand(const Command& cmd);
+    ErrorReason processCommand(const Command& cmd);
 
     const ServoStatus& getServoStatus(int slaveId) const;
     const bool         isRunning() const { return m_Running; }
