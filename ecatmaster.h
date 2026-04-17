@@ -6,6 +6,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <mutex>
+#include <queue>
 
 #include "../CommonConfig.h"
 #include "slave.h"
@@ -32,7 +34,7 @@ public:
 
     ErrorReason processCommand(const Command& cmd);
 
-    const ServoStatus& getServoStatus(int slaveId) const;
+    ServoStatus getServoStatus(int slaveId) const;
     const bool         isRunning() const { return m_Running; }
     const bool         isServoRunning() const;
 
@@ -72,6 +74,9 @@ private:
     int              m_CurrentGroup = 0;
 
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
+
+    std::mutex m_cmdMutex;
+    std::vector<Command> m_cmdQueue;
 };
 
 #endif // ECATMASTER_H

@@ -192,37 +192,17 @@ ErrorReason EcatMaster::processCommand(const Command& cmd)
         return ErrorReason::ServoFault;
     }
 
-    switch (cmd.cmdType) {
-    case CommandType::MovePosition: {
-        qDebug() << "[EcatMaster::processCommand] Command Received: MovePosition, position:" << cmd.value;
-        setPosition(cmd.slaveId, cmd.value);
-        break;
-    }
-    case CommandType::SetHome: {
-        qDebug() << "[EcatMaster::processCommand] Command Received: SetHome";
-        setHome(cmd.slaveId);
-        break;
-    }
-    case CommandType::SetTorque: {
-        qDebug() << "[EcatMaster::processCommand] Command Received: SetTorque, torque:" << cmd.value;
-        setTorque(cmd.slaveId, cmd.value);
-        break;
-    }
-    case CommandType::StopServo: {
-        qDebug() << "[EcatMaster::processCommand] Command Received: StopServo";
-        servo->stop(); // Implemented StopServo
-        break;
-    }
-    default:
-        qWarning() << "[EcatMaster::processCommand] Unknown Command Received:" << (quint32)cmd.cmdType;
-        break;
+    // Command validation passed, enqueue for the process loop
+    {
+        std::lock_guard<std::mutex> lock(m_cmdMutex);
+        m_cmdQueue.push_back(cmd);
     }
 
     return ErrorReason::None;
 }
 
 // if valid servo, return its status; else return empty status
-const ServoStatus& EcatMaster::getServoStatus(int slaveId) const
+ServoStatus EcatMaster::getServoStatus(int slaveId) const
 {
     static constexpr ServoStatus empty {}; // return empty status if invalid
 
@@ -253,7 +233,36 @@ void EcatMaster::processLoop()
     constexpr int cycleTimeUs = 1'000; // 1ms
 
     while (m_Running) {
-        // process each slave
+        // 1. Process pending commands from TCP (Lock-free swap trick)
+        std::vector<Command> localCmds;
+        {
+            std::lock_guard<std::mutex> lock(m_cmdMutex);
+            localCmds.swap(m_cmdQueue);
+        }
+
+        for (const auto& cmd : localCmds) {
+            ServoL7NH* servo = getPtrServo(cmd.slaveId);
+            if (!servo) continue;
+
+            switch (cmd.cmdType) {
+            case CommandType::MovePosition:
+                setPosition(cmd.slaveId, cmd.value);
+                break;
+            case CommandType::SetHome:
+                setHome(cmd.slaveId);
+                break;
+            case CommandType::SetTorque:
+                setTorque(cmd.slaveId, cmd.value);
+                break;
+            case CommandType::StopServo:
+                servo->stop();
+                break;
+            default:
+                break;
+            }
+        }
+
+        // 2. process each slave PDO
         for (int i = 1; i <= ec_slavecount; ++i) {
             if (m_Slaves[i] == nullptr) continue;
 

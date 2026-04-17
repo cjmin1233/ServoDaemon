@@ -3,6 +3,7 @@
 
 #include "../CommonConfig.h"
 #include "slave.h"
+#include <mutex>
 
 bool checkL7NH(int slaveId);
 
@@ -55,7 +56,7 @@ public:
     void setHome();
     void setTorque(int16_t torque);
 
-    const ServoStatus& getStatus() const { return m_Status; }
+    ServoStatus getStatus() const;
     const bool         isRunning() const;
 
 private:
@@ -93,6 +94,8 @@ private:
     // bool   m_wasWarning = false;
     // int8_t m_lastMode = 0;
     int16_t m_targetTorque;
+
+    mutable std::mutex m_statusMutex;
 };
 
 #endif // SERVOL7NH_H

@@ -207,7 +207,7 @@ void EcatServer::onTimerTick()
     // Send status of all valid servos to all connected clients
     int totalSlaves = m_ecatManager->getSlaveCount();
     for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
-        const ServoStatus& status = m_ecatManager->getServoStatus(slaveId);
+        ServoStatus status = m_ecatManager->getServoStatus(slaveId);
 
         QByteArray  block;
         QDataStream out(&block, QIODevice::WriteOnly);

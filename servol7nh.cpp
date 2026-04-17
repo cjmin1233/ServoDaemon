@@ -282,8 +282,11 @@ void ServoL7NH::processData()
         }
 
         // update status
-        m_Status.position = txpdo->actual_position;
-        m_Status.velocity = txpdo->actual_velocity;
+        {
+            std::lock_guard<std::mutex> lock(m_statusMutex);
+            m_Status.position = txpdo->actual_position;
+            m_Status.velocity = txpdo->actual_velocity;
+        }
     }
     // check state machine if not operational yet
     else {
@@ -303,6 +306,12 @@ void ServoL7NH::start()
 
     // // start command: homing mode
     // setHome();
+}
+
+ServoStatus ServoL7NH::getStatus() const
+{
+    std::lock_guard<std::mutex> lock(m_statusMutex);
+    return m_Status;
 }
 
 void ServoL7NH::stop()
@@ -415,8 +424,11 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         controlWord |= servoOD::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
 
         // Update status
-        m_Status.hasError  = true;
-        m_Status.errorCode = txpdo->error_code;
+        {
+            std::lock_guard<std::mutex> lock(m_statusMutex);
+            m_Status.hasError  = true;
+            m_Status.errorCode = txpdo->error_code;
+        }
 
         // Clear pdo values
         rxpdo->mode          = 0;
@@ -429,8 +441,11 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         controlWord &= ~(servoOD::CW_FAULT_RESET); // bit 7: Fault reset(1 -> 0)
 
         // Update status
-        m_Status.hasError  = false;
-        m_Status.errorCode = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_statusMutex);
+            m_Status.hasError  = false;
+            m_Status.errorCode = 0;
+        }
     }
 
     qInfo() << "[ServoL7NH::stateCheck] servo state transitions...";
