@@ -12,6 +12,9 @@ public:
     bool install();
     bool uninstall();
     bool run();
+    
+    // Core function to run the Daemon logic in both console and service mode
+    static int runDaemonCore(class QCoreApplication& app);
 
 private:
     static void WINAPI serviceMain(DWORD argc, LPTSTR* argv);

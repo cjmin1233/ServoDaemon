@@ -57,6 +57,11 @@ void EcatServer::start()
 
 void EcatServer::stop()
 {
+    if (!m_timer || !m_timer->isActive()) {
+        qWarning() << "[EcatServer::stop] Server already stopped!";
+        return;
+    }
+
     qInfo() << "[EcatServer::stop] Stopping server...";
 
     // stop timer
@@ -204,7 +209,7 @@ void EcatServer::onTimerTick()
     for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
         const ServoStatus& status = m_ecatManager->getServoStatus(slaveId);
 
-        QByteArray block;
+        QByteArray  block;
         QDataStream out(&block, QIODevice::WriteOnly);
         out.setVersion(QDataStream::Qt_6_5);
 
@@ -244,7 +249,7 @@ void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in, const Comma
     CommandResponse response;
     response.slaveId = cmd.slaveId;
     response.cmdType = cmd.cmdType;
-    
+
     if (result == ErrorReason::None) {
         response.status = ResponseStatus::ACK;
     } else {
@@ -252,7 +257,7 @@ void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in, const Comma
         response.reason = result;
     }
 
-    QByteArray block;
+    QByteArray  block;
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_6_5);
 

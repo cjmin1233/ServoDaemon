@@ -1,7 +1,6 @@
-#include "Logger.h"
-#include "configloader.h"
 #include "windowsservice.h"
 #include <QCoreApplication>
+#include <QString>
 #include <iostream>
 #include <shlobj.h>
 #include <windows.h>
@@ -17,27 +16,31 @@ bool isUserAdmin()
 
 int main(int argc, char* argv[])
 {
-    QCoreApplication a(argc, argv);
+    QString serviceName = "ServoServiceDemo";
 
-    // Initialize logging system (Async + Rotating)
-    Logger::init();
+    // 1. Check for command line arguments mapping to modes
+    bool isConsoleMode = false;
+    bool isInstallMode = false;
 
-    // JSON 설정 파일 로드 (없으면 컴파일 기본값 유지)
-    const QString cfgPath = ConfigLoader::defaultConfigPath();
-    if (!ConfigLoader::load(cfgPath)) {
-        // 첫 실행 시 JSON 템플릿 자동 생성
-        ConfigLoader::save(cfgPath);
-    }
-
-    // Define the default name of the service
-    QString        serviceName = "ServoServiceDemo";
-    WindowsService service(serviceName);
-
-    // If there are command line arguments (handle install/uninstall)
     if (argc > 1) {
         QString arg(argv[1]);
-        if (arg == "-install" || arg == "--install" || arg == "-uninstall" || arg == "--uninstall") {
+        if (arg == "-c" || arg == "--console") {
+            isConsoleMode = true;
+        } else if (arg == "-install" || arg == "--install" || arg == "-uninstall" || arg == "--uninstall") {
+            isInstallMode = true;
+        }
+    }
 
+    // 2. Execute Console/Install Mode (Needs local QCoreApplication context)
+    // - In console mode, we run the daemon synchronously.
+    // - In install mode, we need QCoreApplication to resolve the absolute executable path using Qt functions.
+    if (isConsoleMode || isInstallMode) {
+        QCoreApplication a(argc, argv);
+
+        WindowsService service(serviceName);
+
+        if (isInstallMode) {
+            QString arg(argv[1]);
             // Service install/uninstall requires administrator privileges
             if (!isUserAdmin()) {
                 std::cout << "Error: Administrator privileges are required to install or remove the service.\n";
@@ -51,13 +54,22 @@ int main(int argc, char* argv[])
                 return service.uninstall() ? 0 : 1;
             }
         }
+
+        if (isConsoleMode) {
+            std::cout << "Running in standalone console mode for debugging..." << std::endl;
+            return WindowsService::runDaemonCore(a);
+        }
     }
 
-    // If no arguments or should run as a service
+    // 3. Execute Service Mode
+    // DO NOT instantiate QCoreApplication here! serviceMain() on the SCM thread will create its own.
+    WindowsService service(serviceName);
+
     // Attempt to connect to SCM by calling StartServiceCtrlDispatcher
     if (!service.run()) {
         std::cout << "This application is a Windows service and must be run via the Service Control Manager (SCM).\n";
         std::cout << "To install the service, run: " << argv[0] << " -install\n";
+        std::cout << "To run as a console application for debugging, run: " << argv[0] << " --console\n";
         return 1;
     }
 

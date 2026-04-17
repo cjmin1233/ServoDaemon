@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QDebug>
 
+#include "configloader.h" // For config initialization
+
 // 서비스 관리를 위한 정적 멤버 변수 초기화
 QString               WindowsService::m_serviceName   = "";
 SERVICE_STATUS_HANDLE WindowsService::m_statusHandle  = nullptr;
@@ -127,9 +129,6 @@ bool WindowsService::run()
     return StartServiceCtrlDispatcherW(dispatchTable);
 }
 
-/**
- * @brief 서비스의 실제 진입점 (Windows SCM에 의해 호출됨)
- */
 void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
 {
     m_statusHandle = RegisterServiceCtrlHandlerW(
@@ -151,6 +150,26 @@ void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
     // Qt 이벤트 루프를 위한 Application 객체 생성
     QCoreApplication a(argc, argv);
 
+    setServiceStatus(SERVICE_RUNNING);
+
+    // 공통 코어 로직 실행 (블록됨)
+    runDaemonCore(a);
+
+    setServiceStatus(SERVICE_STOP_PENDING);
+    setServiceStatus(SERVICE_STOPPED);
+}
+
+int WindowsService::runDaemonCore(QCoreApplication& a)
+{
+    // 1. Initialize logging system (Async + Rotating)
+    Logger::init();
+
+    // 2. Load JSON configuration (create template if not found)
+    const QString cfgPath = ConfigLoader::defaultConfigPath();
+    if (!ConfigLoader::load(cfgPath)) {
+        ConfigLoader::save(cfgPath);
+    }
+
 #ifndef QT_DEBUG
     // install custom message handler for logging
     qInstallMessageHandler(Logger::qtMessageHandler);
@@ -164,18 +183,15 @@ void WINAPI WindowsService::serviceMain(DWORD /*argc*/, LPTSTR* /*argv*/)
         server->start();
     }
 
-    setServiceStatus(SERVICE_RUNNING);
-
     // Qt 이벤트 루프 시작 (여기서 블록됨)
-    a.exec();
+    int ret = a.exec();
 
     // Gracefully stop the EtherCAT server before stopping the service
     if (server) {
         server->stop();
     }
 
-    setServiceStatus(SERVICE_STOP_PENDING);
-    setServiceStatus(SERVICE_STOPPED);
+    return ret;
 }
 
 /**
