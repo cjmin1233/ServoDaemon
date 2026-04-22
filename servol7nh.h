@@ -44,6 +44,8 @@ public:
     virtual void start() override;
     virtual void stop() override;
 
+    void processCommand(const Command& cmd) override;
+
     static bool checkL7NH(int slaveId);
     static int  setup(uint16 slaveId);
     static int  setupPDO(uint16 slaveId);
@@ -57,7 +59,7 @@ public:
     void setTorque(int16_t torque);
 
     ServoStatus getStatus() const;
-    const bool         isRunning() const;
+    const bool  isRunning() const;
 
 private:
     void stateCheck(RxPDO* rxpdo, const TxPDO* txpdo);

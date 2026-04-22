@@ -1,7 +1,7 @@
 #include "ecatmaster.h"
-#include "servood.h"
 #include "servoconfig.h"
 #include "servol7nh.h"
+#include "servood.h"
 
 #include <QDebug>
 #include <iostream>
@@ -141,42 +141,6 @@ void EcatMaster::stop()
     }
 }
 
-void EcatMaster::setPosition(int slaveId, int32_t pos)
-{
-    // get pointer to servo
-    auto* servo = getPtrServo(slaveId);
-
-    if (servo == nullptr) {
-        return;
-    }
-
-    servo->setTargetPosition(pos);
-}
-
-void EcatMaster::setHome(int slaveId)
-{
-    // get pointer to servo
-    auto* servo = getPtrServo(slaveId);
-
-    if (servo == nullptr) {
-        return;
-    }
-
-    servo->setHome();
-}
-
-void EcatMaster::setTorque(int slaveId, int32_t torque)
-{
-    // get pointer to servo
-    auto* servo = getPtrServo(slaveId);
-
-    if (servo == nullptr) {
-        return;
-    }
-
-    servo->setTorque(torque);
-}
-
 ErrorReason EcatMaster::processCommand(const Command& cmd)
 {
     if (!m_Running) {
@@ -241,25 +205,11 @@ void EcatMaster::processLoop()
         }
 
         for (const auto& cmd : localCmds) {
-            ServoL7NH* servo = getPtrServo(cmd.slaveId);
-            if (!servo) continue;
+            int slaveId = cmd.slaveId;
+            if (slaveId < 0 || slaveId >= m_Slaves.size()) continue;
+            if (m_Slaves[slaveId] == nullptr) continue;
 
-            switch (cmd.cmdType) {
-            case CommandType::MovePosition:
-                setPosition(cmd.slaveId, cmd.value);
-                break;
-            case CommandType::SetHome:
-                setHome(cmd.slaveId);
-                break;
-            case CommandType::SetTorque:
-                setTorque(cmd.slaveId, cmd.value);
-                break;
-            case CommandType::StopServo:
-                servo->stop();
-                break;
-            default:
-                break;
-            }
+            m_Slaves[slaveId]->processCommand(cmd);
         }
 
         // 2. process each slave PDO

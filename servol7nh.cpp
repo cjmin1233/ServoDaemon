@@ -379,6 +379,26 @@ void ServoL7NH::setTorque(int16_t torque)
     m_isSettling = false;
 }
 
+void ServoL7NH::processCommand(const Command& cmd)
+{
+    switch (cmd.cmdType) {
+    case CommandType::MovePosition:
+        setTargetPosition(cmd.value);
+        break;
+    case CommandType::SetHome:
+        setHome();
+        break;
+    case CommandType::SetTorque:
+        setTorque(cmd.value);
+        break;
+    case CommandType::StopServo:
+        stop();
+        break;
+    default:
+        break;
+    }
+}
+
 const bool ServoL7NH::isRunning() const
 {
     const TxPDO* txpdo = ptrTxPDO();

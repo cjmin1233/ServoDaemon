@@ -52,10 +52,6 @@ private:
     void slavesCheck();
     void monitorLoop();
 
-    void setPosition(int slaveId, int32_t pos);
-    void setHome(int slaveId);
-    void setTorque(int slaveId, int32_t torque);
-
     ServoL7NH*       getPtrServo(int slaveId);
     const ServoL7NH* getPtrServo(int slaveId) const;
 
