@@ -1,6 +1,6 @@
 #include "configloader.h"
-#include "servoconfig.h"
 #include "../CommonConfig.h"
+#include "servoconfig.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -32,7 +32,7 @@ QString ConfigLoader::defaultConfigPath()
 // JSON → ServoParams 파싱 헬퍼
 // ─────────────────────────────────────────────
 
-static ServoConfig::ServoParams parseServoParams(const QJsonObject& obj,
+static ServoConfig::ServoParams parseServoParams(const QJsonObject&              obj,
                                                  const ServoConfig::ServoParams& defaults)
 {
     auto u32 = [&](const char* key, uint32_t def) -> uint32_t {
@@ -54,42 +54,43 @@ static ServoConfig::ServoParams parseServoParams(const QJsonObject& obj,
     ServoConfig::ServoParams p;
 
     // --- [1] Profile Position Mode ---
-    p.profileVelocity  = u32("profileVelocity",  defaults.profileVelocity);
-    p.profileAccel     = u32("profileAccel",     defaults.profileAccel);
-    p.profileDecel     = u32("profileDecel",     defaults.profileDecel);
-    p.stopDecel        = u32("stopDecel",        defaults.stopDecel);
-    p.posCommandFilter = u16("posCommandFilter", defaults.posCommandFilter);
-    p.posLimitFunc     = u16("posLimitFunc",     defaults.posLimitFunc);
+    p.profileVelocity     = u32("profileVelocity", defaults.profileVelocity);
+    p.profileAccel        = u32("profileAccel", defaults.profileAccel);
+    p.profileDecel        = u32("profileDecel", defaults.profileDecel);
+    p.stopDecel           = u32("stopDecel", defaults.stopDecel);
+    p.posCommandFilter    = u16("posCommandFilter", defaults.posCommandFilter);
+    p.posCommandAvgFilter = u16("posCommandAvgFilter", defaults.posCommandAvgFilter);
+    p.posLimitFunc        = u16("posLimitFunc", defaults.posLimitFunc);
 
     // --- [2] Homing Mode ---
-    p.homeOffset      = i32("homeOffset",      defaults.homeOffset);
-    p.homingMethod    = i8 ("homingMethod",    defaults.homingMethod);
+    p.homeOffset      = i32("homeOffset", defaults.homeOffset);
+    p.homingMethod    = i8("homingMethod", defaults.homingMethod);
     p.homingSpdSwitch = u32("homingSpdSwitch", defaults.homingSpdSwitch);
-    p.homingSpdZero   = u32("homingSpdZero",   defaults.homingSpdZero);
-    p.homingAccel     = u32("homingAccel",     defaults.homingAccel);
+    p.homingSpdZero   = u32("homingSpdZero", defaults.homingSpdZero);
+    p.homingAccel     = u32("homingAccel", defaults.homingAccel);
 
     // --- [3] Profile Torque Mode ---
-    p.torqueLimitFunc  = u16("torqueLimitFunc",  defaults.torqueLimitFunc);
-    p.speedLimitFunc   = u16("speedLimitFunc",   defaults.speedLimitFunc);
-    p.posTorqueLimit   = u16("posTorqueLimit",   defaults.posTorqueLimit);
-    p.negTorqueLimit   = u16("negTorqueLimit",   defaults.negTorqueLimit);
+    p.torqueLimitFunc  = u16("torqueLimitFunc", defaults.torqueLimitFunc);
+    p.speedLimitFunc   = u16("speedLimitFunc", defaults.speedLimitFunc);
+    p.posTorqueLimit   = u16("posTorqueLimit", defaults.posTorqueLimit);
+    p.negTorqueLimit   = u16("negTorqueLimit", defaults.negTorqueLimit);
     p.torqueSpeedLimit = u16("torqueSpeedLimit", defaults.torqueSpeedLimit);
-    p.torqueSlope      = u32("torqueSlope",      defaults.torqueSlope);
-    p.torqueOffset     = i16("torqueOffset",     defaults.torqueOffset);
+    p.torqueSlope      = u32("torqueSlope", defaults.torqueSlope);
+    p.torqueOffset     = i16("torqueOffset", defaults.torqueOffset);
 
     // --- [4] etc ---
-    p.positionWindow  = u32("positionWindow",  defaults.positionWindow);
+    p.positionWindow  = u32("positionWindow", defaults.positionWindow);
     p.quickStopOption = i16("quickStopOption", defaults.quickStopOption);
-    p.shutdownOption  = i16("shutdownOption",  defaults.shutdownOption);
-    p.haltOption      = i16("haltOption",      defaults.haltOption);
+    p.shutdownOption  = i16("shutdownOption", defaults.shutdownOption);
+    p.haltOption      = i16("haltOption", defaults.haltOption);
 
     // --- Mechanical Specs ---
-    p.encoderPPR        = u32("encoderPPR",        defaults.encoderPPR);
-    p.rotationDirection = u16("rotationDirection",  defaults.rotationDirection);
-    p.motorRevolutions  = u32("motorRevolutions",   defaults.motorRevolutions);
-    p.shaftRevolutions  = u32("shaftRevolutions",   defaults.shaftRevolutions);
-    p.leadMm            = u32("leadMm",             defaults.leadMm);
-    p.strokeMm          = u32("strokeMm",           defaults.strokeMm);
+    p.encoderPPR        = u32("encoderPPR", defaults.encoderPPR);
+    p.rotationDirection = u16("rotationDirection", defaults.rotationDirection);
+    p.motorRevolutions  = u32("motorRevolutions", defaults.motorRevolutions);
+    p.shaftRevolutions  = u32("shaftRevolutions", defaults.shaftRevolutions);
+    p.leadMm            = u32("leadMm", defaults.leadMm);
+    p.strokeMm          = u32("strokeMm", defaults.strokeMm);
 
     return p;
 }
@@ -121,8 +122,8 @@ bool ConfigLoader::load(const QString& path)
     // ── 네트워크 설정 ──────────────────────────
     if (root.contains("network")) {
         QJsonObject net = root["network"].toObject();
-        s_port = static_cast<quint16>(net["port"].toDouble(s_port));
-        s_host = net.value("host").toString(s_host);
+        s_port          = static_cast<quint16>(net["port"].toDouble(s_port));
+        s_host          = net.value("host").toString(s_host);
 
         // CommonConfig::Config 의 inline 변수에도 반영
         Config::PORT = s_port;
@@ -139,8 +140,7 @@ bool ConfigLoader::load(const QString& path)
             QJsonValue val = slaves[i];
             if (val.isNull() || !val.isObject()) continue;
 
-            ServoConfig::SlaveConfigs[i] =
-                parseServoParams(val.toObject(), ServoConfig::SlaveConfigs[i]);
+            ServoConfig::SlaveConfigs[i] = parseServoParams(val.toObject(), ServoConfig::SlaveConfigs[i]);
 
             qInfo() << "[ConfigLoader::load] Slave" << i << "config loaded from JSON.";
         }
@@ -159,12 +159,13 @@ bool ConfigLoader::save(const QString& path)
         const auto& p = ServoConfig::SlaveConfigs[i];
         QJsonObject obj;
 
-        obj["profileVelocity"]  = static_cast<qint64>(p.profileVelocity);
-        obj["profileAccel"]     = static_cast<qint64>(p.profileAccel);
-        obj["profileDecel"]     = static_cast<qint64>(p.profileDecel);
-        obj["stopDecel"]        = static_cast<qint64>(p.stopDecel);
-        obj["posCommandFilter"] = p.posCommandFilter;
-        obj["posLimitFunc"]     = p.posLimitFunc;
+        obj["profileVelocity"]     = static_cast<qint64>(p.profileVelocity);
+        obj["profileAccel"]        = static_cast<qint64>(p.profileAccel);
+        obj["profileDecel"]        = static_cast<qint64>(p.profileDecel);
+        obj["stopDecel"]           = static_cast<qint64>(p.stopDecel);
+        obj["posCommandFilter"]    = p.posCommandFilter;
+        obj["posCommandAvgFilter"] = p.posCommandAvgFilter;
+        obj["posLimitFunc"]        = p.posLimitFunc;
 
         obj["homeOffset"]      = p.homeOffset;
         obj["homingMethod"]    = p.homingMethod;

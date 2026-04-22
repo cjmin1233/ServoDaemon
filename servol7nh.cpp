@@ -202,6 +202,7 @@ int ServoL7NH::setupPosition(uint16 slaveId)
     success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
     success &= sdoWrite(slaveId, servoOD::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
     success &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
+    success &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_AVG_FILTER, 0, cfg.posCommandAvgFilter, "Position Command Avg Filter");
     success &= sdoWrite(slaveId, servoOD::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
 
     return success;
