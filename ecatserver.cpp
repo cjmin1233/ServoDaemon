@@ -67,20 +67,17 @@ void EcatServer::stop()
     // stop timer
     m_timer->stop();
 
-    // disconnect clients
-    for (QTcpSocket* socket : m_clients) {
-        if (socket->state() == QAbstractSocket::ConnectedState) {
-            // socket->write("SERVER_SHUTDOWN");
-            socket->disconnectFromHost();
-
-            if (socket->waitForDisconnected(1000)) {
+    // disconnect client
+    if (m_client) {
+        if (m_client->state() == QAbstractSocket::ConnectedState) {
+            m_client->disconnectFromHost();
+            if (m_client->waitForDisconnected(1000)) {
                 qDebug() << "[EcatServer::stop] Client disconnected safely.";
             }
         }
+        m_client->deleteLater();
+        m_client = nullptr;
     }
-
-    qDeleteAll(m_clients);
-    m_clients.clear();
 
     // close server
     if (m_server->isListening()) {
@@ -95,39 +92,24 @@ void EcatServer::stop()
 void EcatServer::onServerConnection()
 {
     while (m_server->hasPendingConnections()) {
-        QTcpSocket* clientSocket = m_server->nextPendingConnection();
+        QTcpSocket* newSocket = m_server->nextPendingConnection();
 
-        m_clients.append(clientSocket);
+        if (m_client) {
+            qWarning() << "[EcatServer::onServerConnection] Kicking old client to accept new connection.";
+            m_client->disconnectFromHost();
+            m_client->deleteLater();
+            m_client = nullptr;
+        }
 
-        // connect signals for client socket
-        QObject::connect(clientSocket, &QTcpSocket::readyRead,
+        m_client = newSocket;
+
+        QObject::connect(m_client, &QTcpSocket::readyRead,
                          this, &EcatServer::onClientReadyread);
-        QObject::connect(clientSocket, &QTcpSocket::disconnected,
+        QObject::connect(m_client, &QTcpSocket::disconnected,
                          this, &EcatServer::onClientDisconnected);
 
-        qInfo() << "[EcatServer::onServerConnection] New client connected. Total clients:" << m_clients.size();
+        qInfo() << "[EcatServer::onServerConnection] New client connected.";
     }
-
-    // // disconnect previous client if exists
-    // if (m_currentClient != nullptr) {
-    //     m_currentClient->deleteLater();
-    // }
-
-    // // accept new client connection
-    // m_currentClient = m_server->nextPendingConnection();
-
-    // if (m_currentClient == nullptr) {
-    //     qWarning() << "[EcatServer::onServerConnection] Client connect failed!";
-    //     return;
-    // }
-
-    // qDebug() << "[EcatServer::onServerConnection] Client connected!";
-
-    // // connect signals for client socket
-    // QObject::connect(m_currentClient, &QTcpSocket::readyRead,
-    //                  this, &EcatServer::onClientReadyread);
-    // QObject::connect(m_currentClient, &QTcpSocket::disconnected,
-    //                  this, &EcatServer::onClientDisconnected);
 }
 
 void EcatServer::onClientReadyread()
@@ -173,15 +155,12 @@ void EcatServer::onClientDisconnected()
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
 
-    m_clients.removeAll(socket);
+    if (m_client == socket) {
+        m_client = nullptr;
+        qInfo() << "[EcatServer::onClientDisconnected] Client disconnected.";
+    }
+
     socket->deleteLater();
-
-    qInfo() << "[EcatServer::onClientDisconnected] Client disconnected. Remaining clients:" << m_clients.size();
-
-    // if (m_currentClient) {
-    //     m_currentClient->deleteLater();
-    //     m_currentClient = nullptr;
-    // }
 }
 
 void EcatServer::onTimerTick()
@@ -202,9 +181,9 @@ void EcatServer::onTimerTick()
         return;
     }
 
-    if (m_clients.isEmpty()) return;
+    if (!m_client || m_client->state() != QAbstractSocket::ConnectedState) return;
 
-    // Send status of all valid servos to all connected clients
+    // Send status of all valid servos to the connected client
     int totalSlaves = m_ecatManager->getSlaveCount();
     for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
         ServoStatus status = m_ecatManager->getServoStatus(slaveId);
@@ -221,11 +200,7 @@ void EcatServer::onTimerTick()
         out.device()->seek(0);
         out << (quint32)(block.size() - sizeof(quint32));
 
-        for (QTcpSocket* client : m_clients) {
-            if (client->state() == QAbstractSocket::ConnectedState) {
-                client->write(block);
-            }
-        }
+        m_client->write(block);
     }
 }
 
