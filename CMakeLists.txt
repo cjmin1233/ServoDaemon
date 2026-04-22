@@ -96,3 +96,6 @@ install(TARGETS ServoDaemon
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# 설정 파일이 들어있는 config 폴더를 빌드 출력 디렉터리로 복사 (실행 시 소스코드의 JSON 설정이 덮어써지도록)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
