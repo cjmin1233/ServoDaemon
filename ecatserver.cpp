@@ -1,5 +1,6 @@
 #include "ecatserver.h"
 
+#include <QDateTime>
 #include <QDebug>
 #include <QFile>
 #include <QTcpServer>
@@ -14,7 +15,6 @@ EcatServer::EcatServer(QObject* parent)
     , m_server(new QTcpServer(this))
     , m_timer(new QTimer(this))
     , m_ecatManager(new EcatManager(this))
-    , m_tickCycle(1000) // 1 sec
 {
     QObject::connect(m_server, &QTcpServer::newConnection,
                      this, &EcatServer::onServerConnection);
@@ -101,7 +101,8 @@ void EcatServer::onServerConnection()
             m_client = nullptr;
         }
 
-        m_client = newSocket;
+        m_client         = newSocket;
+        m_lastPacketTime = QDateTime::currentMSecsSinceEpoch();
 
         QObject::connect(m_client, &QTcpSocket::readyRead,
                          this, &EcatServer::onClientReadyread);
@@ -116,6 +117,9 @@ void EcatServer::onClientReadyread()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
+
+    // Update watchdog timestamp on ANY data received
+    m_lastPacketTime = QDateTime::currentMSecsSinceEpoch();
 
     QDataStream in(socket);
     in.setVersion(QDataStream::Qt_6_5);
@@ -161,6 +165,15 @@ void EcatServer::onClientDisconnected()
     }
 
     socket->deleteLater();
+
+    // Stop all servos
+    int totalSlaves = m_ecatManager->getSlaveCount();
+    for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
+        Command stopCmd;
+        stopCmd.slaveId = slaveId;
+        stopCmd.cmdType = CommandType::StopServo;
+        m_ecatManager->processCommand(stopCmd);
+    }
 }
 
 void EcatServer::onTimerTick()
@@ -182,6 +195,25 @@ void EcatServer::onTimerTick()
     }
 
     if (!m_client || m_client->state() != QAbstractSocket::ConnectedState) return;
+
+    // Watchdog check
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastPacketTime > m_watchdogTimeoutMs) {
+        qWarning() << "[EcatServer::onTimerTick] Watchdog timeout! Halting all servos.";
+
+        // // Stop all servos
+        // int totalSlaves = m_ecatManager->getSlaveCount();
+        // for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
+        //     Command stopCmd;
+        //     stopCmd.slaveId = slaveId;
+        //     stopCmd.cmdType = CommandType::StopServo;
+        //     m_ecatManager->processCommand(stopCmd);
+        // }
+
+        // Disconnect client as penalty
+        m_client->disconnectFromHost();
+        return;
+    }
 
     // Send status of all valid servos to the connected client
     int totalSlaves = m_ecatManager->getSlaveCount();
@@ -207,7 +239,7 @@ void EcatServer::onTimerTick()
 void EcatServer::startTimer()
 {
     if (m_timer && !m_timer->isActive()) {
-        m_timer->start(m_tickCycle);
+        m_timer->start(m_tickCycleMs);
 
         qInfo() << "[EcatServer::start] Ecat server timer is now active.";
     }
@@ -216,6 +248,11 @@ void EcatServer::startTimer()
 void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in, const Command& cmd)
 {
     if (!in.commitTransaction()) {
+        return;
+    }
+
+    // If it's just a heartbeat, we are done (timestamp already updated in onClientReadyread)
+    if (cmd.cmdType == CommandType::Heartbeat) {
         return;
     }
 

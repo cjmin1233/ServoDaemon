@@ -95,7 +95,7 @@ private:
 
     // bool   m_wasWarning = false;
     // int8_t m_lastMode = 0;
-    int16_t m_targetTorque;
+    int16_t m_targetTorque = 0;
 
     mutable std::mutex m_statusMutex;
 };

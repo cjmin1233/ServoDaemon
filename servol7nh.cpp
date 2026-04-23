@@ -4,9 +4,9 @@
 
 #include <QDebug>
 
-#include "servood.h"
 #include "servoconfig.h"
 #include "servol7nh.h"
+#include "servood.h"
 
 // settling constants
 static constexpr int SETTLING_TIMEOUT      = 5000;
@@ -318,10 +318,24 @@ ServoStatus ServoL7NH::getStatus() const
 void ServoL7NH::stop()
 {
     RxPDO* rxpdo = ptrRxPDO();
-
     if (rxpdo == nullptr) return;
 
-    rxpdo->control_word = servoOD::CW_SHUTDOWN; // 0x0006
+    // CiA402 표준 방식: Control Word의 Halt 비트(Bit 8)를 1로 세트
+    // 드라이브가 설정된 Profile Deceleration에 따라 내부적으로 안전하고 부드럽게 정지합니다.
+    rxpdo->control_word |= servoOD::CW_BIT_HALT;
+
+    // 진행 중이던 New Setpoint 요청이 있다면 취소
+    rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT);
+
+    rxpdo->target_torque = 0; // Clear target torque
+    m_targetTorque       = 0;
+
+    // 제어 상태 플래그 초기화
+    m_flagNewSetpoint = false;
+    m_flagHomingStart = false;
+    m_isSettling      = false;
+
+    qInfo() << "[ServoL7NH::stop] Halt bit set for slave" << m_slaveId;
 }
 
 void ServoL7NH::setTargetPosition(float ratio)
@@ -337,12 +351,15 @@ void ServoL7NH::setTargetPosition(int32_t pos)
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode             = static_cast<int8_t>(servoOD::Mode::PP);
-    rxpdo->target_position  = pos * m_pulsePerMm;             // Calculate target position
-    rxpdo->target_torque    = 0;                              // Clear target torque
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_HALT);         // Clear halt bit
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
+    rxpdo->mode            = static_cast<int8_t>(servoOD::Mode::PP);
+    rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
+
+    rxpdo->target_torque = 0; // Clear target torque
+    m_targetTorque       = 0;
+
+    rxpdo->control_word &= ~(servoOD::CW_BIT_HALT);         // Clear halt bit
+    rxpdo->control_word &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
+    rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
     m_flagNewSetpoint = true;
     m_isSettling      = false;
@@ -354,12 +371,15 @@ void ServoL7NH::setHome()
 
     if (rxpdo == nullptr) return;
 
-    rxpdo->mode             = static_cast<int8_t>(servoOD::Mode::HM); // Set to Homing Mode
-    rxpdo->target_position  = 0;                                     // Set target position 0...just in case
-    rxpdo->target_torque    = 0;                                     // Clear target torque
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_HALT);                // Clear halt bit
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_ABS_REL);             // Absolute move
-    rxpdo->control_word    &= ~(servoOD::CW_BIT_NEW_SETPOINT);        // Clear homing start bit
+    rxpdo->mode            = static_cast<int8_t>(servoOD::Mode::HM); // Set to Homing Mode
+    rxpdo->target_position = 0;                                      // Set target position 0...just in case
+
+    rxpdo->target_torque = 0; // Clear target torque
+    m_targetTorque       = 0;
+
+    rxpdo->control_word &= ~(servoOD::CW_BIT_HALT);         // Clear halt bit
+    rxpdo->control_word &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
+    rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear homing start bit
 
     m_flagHomingStart = true;
     m_isSettling      = false;
@@ -373,8 +393,8 @@ void ServoL7NH::setTorque(int16_t torque)
 
     rxpdo->mode          = static_cast<int8_t>(servoOD::Mode::PT);
     rxpdo->control_word &= ~(servoOD::CW_BIT_HALT); // Clear halt bit
-                                                   // rxpdo->target_torque  = torque;
-    m_targetTorque = torque;                       // Store target torque to be applied in processPT
+                                                    // rxpdo->target_torque  = torque;
+    m_targetTorque = torque;                        // Store target torque to be applied in processPT
 
     m_isSettling = false;
 }
@@ -441,7 +461,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         qWarning() << "[ServoL7NH::stateCheck] Servo FAULT Detected!";
 
         // Set control word
-        controlWord &= bit0F;                  // clear bit 4 to 15
+        controlWord &= bit0F;                   // clear bit 4 to 15
         controlWord |= servoOD::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
 
         // Update status
