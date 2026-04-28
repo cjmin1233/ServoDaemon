@@ -598,9 +598,9 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isHomingStart    = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
-    const bool isHomingAttained = statusWord & servoOD::SW_BIT_HOMING_ATTAINED;
-    const bool isHomingError    = statusWord & servoOD::SW_BIT_HOMING_ERROR;
+    const bool isHomingStart = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
+    const bool isHomingError = statusWord & servoOD::SW_BIT_HOMING_ERROR;
+    // const bool isHomingAttained = statusWord & servoOD::SW_BIT_HOMING_ATTAINED;
 
     // Homing error handling
     if (isHomingError) {
@@ -622,26 +622,27 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
         return;
     }
 
-    // Homing processing...
-    if (isHomingStart) {
-        // // Homing Attained, enter settling phase
-        // if (isHomingAttained && !m_isSettling) {
-        //     qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
+    // // Homing processing...
+    // if (isHomingStart) {
+    //     // Homing Attained, enter settling phase
+    //     if (isHomingAttained && !m_isSettling) {
+    //         qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
 
-        //     m_isSettling            = true;
-        //     m_settlingTimeout       = SETTLING_TIMEOUT;
-        //     m_settlingStableCounter = 0;
+    //         m_isSettling            = true;
+    //         m_settlingTimeout       = SETTLING_TIMEOUT;
+    //         m_settlingStableCounter = 0;
 
-        //     return;
-        // }
+    //         return;
+    //     }
 
-        // // Settling phase logic
-        // if (m_isSettling) {
-        //     settling(rxpdo, txpdo);
-        // }
-    }
+    //     // Settling phase logic
+    //     if (m_isSettling) {
+    //         settling(rxpdo, txpdo);
+    //     }
+    // }
 }
 
+/*
 void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     auto& controlWord = rxpdo->control_word;
@@ -686,3 +687,4 @@ const bool ServoL7NH::isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const
     // Check if within the position window
     return absDiff <= m_posWindow;
 }
+*/

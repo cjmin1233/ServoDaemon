@@ -67,9 +67,9 @@ private:
     void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
     void processHM(RxPDO* rxpdo, const TxPDO* txpdo);
 
-    void settling(RxPDO* rxpdo, const TxPDO* txpdo);
+    // void settling(RxPDO* rxpdo, const TxPDO* txpdo);
 
-    const bool isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const;
+    // const bool isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const;
 
     RxPDO*       ptrRxPDO() { return reinterpret_cast<RxPDO*>(ec_slave[m_slaveId].outputs); }
     const TxPDO* ptrTxPDO() const { return reinterpret_cast<const TxPDO*>(ec_slave[m_slaveId].inputs); }
