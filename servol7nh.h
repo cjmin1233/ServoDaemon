@@ -83,10 +83,10 @@ private:
     int m_stateCheckCounter = 0;
 
     // settling variables
-    bool     m_isSettling            = false;
-    int      m_settlingTimeout       = 0;
-    int      m_settlingStableCounter = 0;
-    uint32_t m_posWindow             = 0;
+    // bool     m_isSettling            = false;
+    // int      m_settlingTimeout       = 0;
+    // int      m_settlingStableCounter = 0;
+    // uint32_t m_posWindow             = 0;
 
     ServoStatus m_Status = {};
 

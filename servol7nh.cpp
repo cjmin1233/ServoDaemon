@@ -299,7 +299,7 @@ void ServoL7NH::start()
 {
     const auto& cfg = ServoConfig::SlaveConfigs[m_slaveId];
 
-    m_posWindow = cfg.positionWindow;
+    // m_posWindow = cfg.positionWindow;
 
     // calculate pulse per mm, limit
     m_pulsePerMm = calcPulsePerMm(m_slaveId);
@@ -333,7 +333,7 @@ void ServoL7NH::stop()
     // 제어 상태 플래그 초기화
     m_flagNewSetpoint = false;
     m_flagHomingStart = false;
-    m_isSettling      = false;
+    // m_isSettling      = false;
 
     qInfo() << "[ServoL7NH::stop] Halt bit set for slave" << m_slaveId;
 }
@@ -352,17 +352,19 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     if (rxpdo == nullptr) return;
 
     rxpdo->mode            = static_cast<int8_t>(servoOD::Mode::PP);
-    rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
+    rxpdo->target_position = 1'000'000'000; // Calculate target position
+    // rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
 
-    rxpdo->target_torque = 0; // Clear target torque
-    m_targetTorque       = 0;
+    // rxpdo->target_torque = 0; // Clear target torque
+    // m_targetTorque       = 0;
 
     rxpdo->control_word &= ~(servoOD::CW_BIT_HALT);         // Clear halt bit
     rxpdo->control_word &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
     rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
-    m_flagNewSetpoint = true;
-    m_isSettling      = false;
+    // m_flagNewSetpoint = true;
+    m_flagNewSetpoint = false;
+    // m_isSettling      = false;
 }
 
 void ServoL7NH::setHome()
@@ -382,7 +384,7 @@ void ServoL7NH::setHome()
     rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear homing start bit
 
     m_flagHomingStart = true;
-    m_isSettling      = false;
+    // m_isSettling      = false;
 }
 
 void ServoL7NH::setTorque(int16_t torque)
@@ -392,11 +394,11 @@ void ServoL7NH::setTorque(int16_t torque)
     if (rxpdo == nullptr) return;
 
     rxpdo->mode          = static_cast<int8_t>(servoOD::Mode::PT);
-    rxpdo->control_word &= ~(servoOD::CW_BIT_HALT); // Clear halt bit
-                                                    // rxpdo->target_torque  = torque;
-    m_targetTorque = torque;                        // Store target torque to be applied in processPT
+    rxpdo->control_word |= (servoOD::CW_BIT_HALT); // Clear halt bit
+                                                   // rxpdo->target_torque  = torque;
+    m_targetTorque = torque;                       // Store target torque to be applied in processPT
 
-    m_isSettling = false;
+    // m_isSettling = false;
 }
 
 void ServoL7NH::processCommand(const Command& cmd)
@@ -571,6 +573,8 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
     static constexpr int8_t MODE_PT = static_cast<int8_t>(servoOD::Mode::PT);
     // operated mode should be already set to PT
     if (rxpdo->mode != MODE_PT) {
+        rxpdo->target_torque = -100;
+
         return;
     }
 
