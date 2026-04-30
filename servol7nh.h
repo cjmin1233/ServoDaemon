@@ -56,7 +56,7 @@ public:
     void setTargetPosition(float ratio);
     void setTargetPosition(int32_t pos);
     void setHome();
-    void setTorque(int16_t torque);
+    // void setTorque(int16_t torque);
 
     ServoStatus getStatus() const;
     const bool  isRunning() const;
@@ -64,7 +64,7 @@ public:
 private:
     void stateCheck(RxPDO* rxpdo, const TxPDO* txpdo);
     void processPP(RxPDO* rxpdo, const TxPDO* txpdo);
-    void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
+    // void processPT(RxPDO* rxpdo, const TxPDO* txpdo);
     void processHM(RxPDO* rxpdo, const TxPDO* txpdo);
 
     // void settling(RxPDO* rxpdo, const TxPDO* txpdo);

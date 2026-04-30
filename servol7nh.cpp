@@ -264,7 +264,7 @@ void ServoL7NH::processData()
         case servoOD::Mode::PV:
             break; // Profile Velocity
         case servoOD::Mode::PT: {
-            processPT(rxpdo, txpdo);
+            // processPT(rxpdo, txpdo);
 
             break;
         }
@@ -352,8 +352,7 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     if (rxpdo == nullptr) return;
 
     rxpdo->mode            = static_cast<int8_t>(servoOD::Mode::PP);
-    rxpdo->target_position = 1'000'000'000; // Calculate target position
-    // rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
+    rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
 
     // rxpdo->target_torque = 0; // Clear target torque
     // m_targetTorque       = 0;
@@ -362,8 +361,7 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     rxpdo->control_word &= ~(servoOD::CW_BIT_ABS_REL);      // Absolute move
     rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
-    // m_flagNewSetpoint = true;
-    m_flagNewSetpoint = false;
+    m_flagNewSetpoint = true;
     // m_isSettling      = false;
 }
 
@@ -387,6 +385,7 @@ void ServoL7NH::setHome()
     // m_isSettling      = false;
 }
 
+/*
 void ServoL7NH::setTorque(int16_t torque)
 {
     RxPDO* rxpdo = ptrRxPDO();
@@ -400,6 +399,7 @@ void ServoL7NH::setTorque(int16_t torque)
 
     // m_isSettling = false;
 }
+*/
 
 void ServoL7NH::processCommand(const Command& cmd)
 {
@@ -411,7 +411,7 @@ void ServoL7NH::processCommand(const Command& cmd)
         setHome();
         break;
     case CommandType::SetTorque:
-        setTorque(cmd.value);
+        // setTorque(cmd.value);
         break;
     case CommandType::StopServo:
         stop();
@@ -567,6 +567,7 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
     // }
 }
 
+/*
 void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile torque mode
@@ -589,6 +590,7 @@ void ServoL7NH::processPT(RxPDO* rxpdo, const TxPDO* txpdo)
 
     rxpdo->target_torque = safeTorque;
 }
+*/
 
 void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
 {
