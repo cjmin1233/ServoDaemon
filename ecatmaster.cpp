@@ -263,7 +263,8 @@ void EcatMaster::ecatCheck()
 
     while (m_Running) {
         // if WKC is less than expected, or check state flag is set, check all slaves
-        if (m_CurrentWKC.load() < m_ExpectedWKC
+        int wkc = m_CurrentWKC.load();
+        if (wkc == 0 || wkc < m_ExpectedWKC
             || ec_group[m_CurrentGroup].docheckstate) {
             // clear check state flag
             ec_group[m_CurrentGroup].docheckstate = FALSE;

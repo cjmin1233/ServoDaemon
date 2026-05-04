@@ -438,20 +438,21 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     static constexpr uint16_t bitF0                  = 0xF0;
     static constexpr uint16_t bit0F                  = 0x0F;
 
+    // Cycle delay for state check
+    if (m_stateCheckCounter > 0) {
+        --m_stateCheckCounter;
+        return;
+    }
+
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
         qInfo() << "[ServoL7NH::stateCheck] ecat state not op...";
+        qInfo() << "[ServoL7NH:stateCheck] " << ec_slave[0].state << " " << ec_slave[m_slaveId].state;
         return;
     }
 
     if (rxpdo == nullptr || txpdo == nullptr) {
         qInfo() << "[ServoL7NH::stateCheck] pdo is nullptr...";
-        return;
-    }
-
-    // Cycle delay for state check
-    if (m_stateCheckCounter > 0) {
-        --m_stateCheckCounter;
         return;
     }
 
