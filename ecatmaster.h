@@ -35,18 +35,18 @@ public:
 
     ServoStatus getServoStatus(int slaveId) const;
     const bool  isRunning() const { return m_Running; }
-    const bool  isServoRunning() const;
+    // const bool  isServoRunning() const;
 
-    const bool isThreadTerminated() const
-    {
-        return !m_Worker.joinable() || !m_ErrorHandler.joinable();
-    }
+    // const bool isThreadTerminated() const
+    // {
+    //     return !m_Worker.joinable() || !m_ErrorHandler.joinable();
+    // }
 
     bool isAdapterValid(const std::string& ifname);
 
 private:
-    void processLoop();
     bool reqOpState();
+    void processLoop();
     void ecatCheck();
     void slavesCheck();
     void monitorLoop();
