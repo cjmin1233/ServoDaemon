@@ -6,6 +6,43 @@
 #include <QDebug>
 #include <iostream>
 
+#ifdef _WIN32
+#include <timeapi.h>
+#include <windows.h>
+#endif
+
+/**
+ * @brief Simple DC synchronization helper (from SOEM examples).
+ * Adjusts the offset to keep the master cycle synced with the reference slave.
+ */
+static void ec_sync(int64_t reftime, int64_t cycletime, int64_t* offsettime)
+{
+    static int64_t integral = 0;
+
+    // 1. 오차(Delta) 계산
+    // reftime(슬레이브 시각)을 주기(1ms)로 나눈 나머지 값을 구합니다.
+    // 300,000(300us)을 빼는 이유는 네트워크 전송 시간을 고려해
+    // 슬레이브의 싱크 펄스보다 마스터가 '약간 일찍' 도착하게 하기 위한 여유값(Margin)입니다.
+    int64_t delta = (reftime - 300000) % cycletime;
+
+    // 2. 오차 범위 정규화
+    // 나머지가 주기의 절반을 넘어가면, '너무 늦은 것'이 아니라 '너무 빠른 것'으로 해석되도록
+    // 오차 범위를 -500us ~ +500us 사이로 맞춥니다.
+    if (delta > (cycletime / 2)) delta -= cycletime;
+
+    // 3. 적분항(Integral) 누적
+    // 현재 오차가 양수면(늦었으면) 누적값을 키우고, 음수면(빠르면) 누적값을 줄입니다.
+    // 이는 아주 미세하게 지속되는 속도 차이(클록 드리프트)를 장기적으로 보정합니다.
+    if (delta > 0) integral++;
+    if (delta < 0) integral--;
+
+    // 4. 최종 보정값(Offset) 계산 (PI 제어)
+    // -(delta / 100) : 비례항(P). 현재 발생한 오차의 1%만큼 즉시 반영합니다.
+    // -(integral / 20) : 적분항(I). 누적된 오차를 반영하여 서서히 시계를 맞춥니다.
+    // 마이너스가 붙은 이유는 오차가 플러스(지연)일 때 잠자는 시간(sleep)을 줄여야 하기 때문입니다.
+    *offsettime = -(delta / 100) - (integral / 20);
+}
+
 /** timeout value in us for return "Operational" state */
 #define EC_TIMEOUTOP 50000
 
@@ -55,7 +92,13 @@ bool EcatMaster::init(const std::string& ifname)
         }
     }
 
-    ec_config_map(&m_IOmap);
+    if (ec_config_map(&m_IOmap) <= 0) {
+        std::cout << "[EcatMaster::init] ec_config_map failed" << std::endl;
+        ec_close();
+        m_Initialized = false;
+        return false;
+    }
+
     ec_configdc();
 
     // After ec_config_map succeeded, slaves are in SAFE-OP state
@@ -66,6 +109,13 @@ bool EcatMaster::init(const std::string& ifname)
     // calculate expected WKC
     m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
     std::cout << "[EcatMaster::init] Expected WKC : " << m_ExpectedWKC << std::endl;
+
+    if (m_ExpectedWKC <= 0) {
+        std::cout << "[EcatMaster::init] Expected WKC is 0. Check slave configurations." << std::endl;
+        ec_close();
+        m_Initialized = false;
+        return false;
+    }
 
     return reqOpState();
 }
@@ -196,6 +246,10 @@ void EcatMaster::processLoop()
 {
     constexpr int cycleTimeUs = 1'000; // 1ms
 
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
+
     while (m_Running) {
         // 1. Process pending commands from TCP (Lock-free swap trick)
         std::vector<Command> localCmds;
@@ -221,9 +275,24 @@ void EcatMaster::processLoop()
 
         ec_send_processdata();
         m_CurrentWKC.store(ec_receive_processdata(EC_TIMEOUTRET));
-        // sleep
-        std::this_thread::sleep_for(std::chrono::microseconds(cycleTimeUs));
+
+        if (ec_slavecount > 0) {
+            // Calculate DC sync offset (ns)
+            ec_sync(ec_DCtime, (int64_t)cycleTimeUs * 1000, &m_syncOffset);
+        }
+
+        // sleep with DC adjustment
+        int64_t sleepUs = cycleTimeUs + (m_syncOffset / 1000);
+        if (sleepUs > 0) {
+            std::this_thread::sleep_for(std::chrono::microseconds(sleepUs));
+        } else {
+            // cycle is too late, don't sleep
+        }
     }
+
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
 }
 
 // request Operational state for all slaves
@@ -241,6 +310,10 @@ bool EcatMaster::reqOpState()
     // wait for all slaves to reach OP state
     int chk = 200;
     do {
+        // Periodic process data to satisfy slave watchdogs during transition
+        ec_send_processdata();
+        ec_receive_processdata(EC_TIMEOUTRET);
+
         ec_statecheck(0, EC_STATE_OPERATIONAL, EC_TIMEOUTOP);
     } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
 
@@ -261,11 +334,18 @@ void EcatMaster::ecatCheck()
     constexpr int cycleTimeUs   = 10000; // 10ms;
     constexpr int errorCountMax = 5;
 
+    int syncCounter = 0;
+
     while (m_Running) {
         // if WKC is less than expected, or check state flag is set, check all slaves
         int wkc = m_CurrentWKC.load();
-        if (wkc == 0 || wkc < m_ExpectedWKC
-            || ec_group[m_CurrentGroup].docheckstate) {
+
+        // Force state check every 1 second (100 * 10ms) to ensure state synchronization
+        bool forceCheck = (++syncCounter >= 100);
+
+        if (wkc < m_ExpectedWKC || ec_group[m_CurrentGroup].docheckstate || forceCheck) {
+            if (forceCheck) syncCounter = 0;
+
             // clear check state flag
             ec_group[m_CurrentGroup].docheckstate = FALSE;
             // read state of all slaves
@@ -273,8 +353,8 @@ void EcatMaster::ecatCheck()
             // check each slave state
             slavesCheck();
 
-            // if check state flag is cleared, all slaves are resumed to OP state
-            if (!ec_group[m_CurrentGroup].docheckstate) {
+            // if check state flag is cleared and it wasn't a force check, all slaves are resumed
+            if (!ec_group[m_CurrentGroup].docheckstate && !forceCheck) {
                 std::cout << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL" << std::endl;
             }
         }

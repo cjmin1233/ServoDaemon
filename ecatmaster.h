@@ -3,11 +3,10 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
-#include <mutex>
-#include <queue>
 
 #include "../CommonConfig.h"
 #include "slave.h"
@@ -35,8 +34,8 @@ public:
     ErrorReason processCommand(const Command& cmd);
 
     ServoStatus getServoStatus(int slaveId) const;
-    const bool         isRunning() const { return m_Running; }
-    const bool         isServoRunning() const;
+    const bool  isRunning() const { return m_Running; }
+    const bool  isServoRunning() const;
 
     const bool isThreadTerminated() const
     {
@@ -69,9 +68,12 @@ private:
     std::atomic<int> m_CurrentWKC { 0 };
     int              m_CurrentGroup = 0;
 
+    // DC synchronization
+    int64_t m_syncOffset = 0;
+
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
 
-    std::mutex m_cmdMutex;
+    std::mutex           m_cmdMutex;
     std::vector<Command> m_cmdQueue;
 };
 

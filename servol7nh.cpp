@@ -446,8 +446,9 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Only operate if in OPERATIONAL state
     if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
-        qInfo() << "[ServoL7NH::stateCheck] ecat state not op...";
-        qInfo() << "[ServoL7NH:stateCheck] " << ec_slave[0].state << " " << ec_slave[m_slaveId].state;
+        qInfo() << "[ServoL7NH::stateCheck] ecat state NOT OP! Slave:" << m_slaveId
+                << "State:" << QString("0x%1").arg(ec_slave[m_slaveId].state, 0, 16)
+                << "ALStatus:" << QString("0x%1").arg(ec_slave[m_slaveId].ALstatuscode, 4, 16, QChar('0'));
         return;
     }
 
