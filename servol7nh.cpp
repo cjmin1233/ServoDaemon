@@ -249,6 +249,8 @@ void ServoL7NH::processData()
     const auto* txpdo      = ptrTxPDO();
     const auto& statusWord = txpdo->status_word;
 
+    if (rxpdo == nullptr || txpdo == nullptr) return;
+
     if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_OP_ENABLED) {
         const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
 

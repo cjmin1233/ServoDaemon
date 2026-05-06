@@ -33,8 +33,8 @@ private:
 
 private:
     EcatMaster m_Master;
-
-    QString m_ifname;
+    QString    m_ifname;
+    bool       m_isConnecting = false;
 };
 
 #endif // ECATMANAGER_H

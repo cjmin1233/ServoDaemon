@@ -27,94 +27,115 @@ static void ec_sync(int64_t reftime, int64_t cycletime, int64_t* offsettime)
 
     // 1. Calculate Delta
     // Get the remainder of reftime (slave time) divided by the period (1ms).
-    // Subtracting 300,000 (300us) to ensure the master arrives slightly earlier than the slave's sync pulse,
-    // considering network latency (margin).
+    // Subtracting 300,000 (300us) to ensure the master arrives slightly earlier
+    // than the slave's sync pulse, considering network latency (margin).
     int64_t delta = (reftime - 300000) % cycletime;
 
     // 2. Normalize Delta Range
-    // If the remainder exceeds half the period, interpret it as "too fast" instead of "too slow",
-    // and normalize the range to [-500us, +500us].
-    if (delta > (cycletime / 2)) delta -= cycletime;
+    // If the remainder exceeds half the period, interpret it as "too fast"
+    // instead of "too slow", and normalize the range to [-500us, +500us].
+    if (delta > (cycletime / 2))
+        delta -= cycletime;
 
     // 3. Accumulate Integral Term
-    // If current delta is positive (late), increase integral; if negative (fast), decrease integral.
-    // This corrects long-term clock drift (steady-state error).
-    if (delta > 0) integral++;
-    if (delta < 0) integral--;
+    // If current delta is positive (late), increase integral; if negative (fast),
+    // decrease integral. This corrects long-term clock drift (steady-state
+    // error).
+    if (delta > 0)
+        integral++;
+    if (delta < 0)
+        integral--;
 
     // 4. Calculate Final Offset (PI Control)
-    // -(delta / 100): Proportional (P) term. Adjusts 1% of the current error immediately.
-    // -(integral / 20): Integral (I) term. Adjusts based on accumulated error for stable synchronization.
-    // Negative sign is used because if delta is positive (late), we need to decrease sleep duration.
+    // -(delta / 100): Proportional (P) term. Adjusts 1% of the current error
+    // immediately.
+    // -(integral / 20): Integral (I) term. Adjusts based on accumulated error for
+    // stable synchronization. Negative sign is used because if delta is positive
+    // (late), we need to decrease sleep duration.
     *offsettime = -(delta / 100) - (integral / 20);
 }
 
 // Initialize EtherCAT master, return true if initialized successfully
 bool EcatMaster::init(const std::string& ifname)
 {
-    if (!ec_init(ifname.c_str())) {
-        std::cout << "[EcatMaster::init] ec_init failed on " << ifname << std::endl;
-        return false;
-    }
+    // Small delay to allow hardware/drivers to settle (especially on power-on
+    // link bounce)
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    // Set init flag
-    m_Initialized = true;
-    // After ec_init succeeded, state should be INIT
-    std::cout << "[EcatMaster::init] ec_init on " << ifname << " succeeded" << std::endl;
+    {
+        std::lock_guard<std::mutex> lock(m_ecatMutex);
 
-    if (ec_config_init(FALSE) <= 0) {
-        std::cout << "[EcatMaster::init] No Slaves found" << std::endl;
-        ec_close();
-        m_Initialized = false; // reset init flag
-
-        return false;
-    }
-    // After ec_config_init succeeded, slaves are in PRE-OP state
-    ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
-
-    std::cout << "[EcatMaster::init] " << ec_slavecount << " slaves found" << std::endl;
-
-    // Create slave instances
-    m_Slaves.clear();
-    m_Slaves.resize(ec_slavecount + 1);
-    for (int i = 1; i <= ec_slavecount; ++i) {
-        auto& slave = ec_slave[i];
-
-        // Detect and create slave instances
-        if (ServoL7NH::checkL7NH(i)) {
-            // Setup PO2SOconfig function
-            slave.PO2SOconfig = &ServoL7NH::setup;
-
-            // Create slave instance
-            m_Slaves[i] = std::make_unique<ServoL7NH>(i);
-        } else {
-            m_Slaves[i] = nullptr;
+        if (!ec_init(ifname.c_str())) {
+            std::cout << "[EcatMaster::init] ec_init failed on " << ifname
+                      << std::endl;
+            return false;
         }
-    }
 
-    if (ec_config_map(&m_IOmap) <= 0) {
-        std::cout << "[EcatMaster::init] ec_config_map failed" << std::endl;
-        ec_close();
-        m_Initialized = false;
-        return false;
-    }
+        // Set init flag
+        m_Initialized = true;
+        // After ec_init succeeded, state should be INIT
+        std::cout << "[EcatMaster::init] ec_init on " << ifname << " succeeded"
+                  << std::endl;
 
-    ec_configdc();
+        if (ec_config_init(FALSE) <= 0) {
+            std::cout << "[EcatMaster::init] No Slaves found" << std::endl;
+            ec_close();
+            m_Initialized = false; // reset init flag
 
-    // After ec_config_map succeeded, slaves are in SAFE-OP state
-    std::cout << "[EcatMaster::init] Slaves mapped, state to SAFE_OP" << std::endl;
+            return false;
+        }
+        // After ec_config_init succeeded, slaves are in PRE-OP state
+        ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
 
-    ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTCONFIG);
+        std::cout << "[EcatMaster::init] " << ec_slavecount << " slaves found"
+                  << std::endl;
 
-    // Calculate expected WKC
-    m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
-    std::cout << "[EcatMaster::init] Expected WKC : " << m_ExpectedWKC << std::endl;
+        // Create slave instances
+        m_Slaves.clear();
+        m_Slaves.resize(ec_slavecount + 1);
+        for (int i = 1; i <= ec_slavecount; ++i) {
+            auto& slave = ec_slave[i];
 
-    if (m_ExpectedWKC <= 0) {
-        std::cout << "[EcatMaster::init] Expected WKC is 0. Check slave configurations." << std::endl;
-        ec_close();
-        m_Initialized = false;
-        return false;
+            // Detect and create slave instances
+            if (ServoL7NH::checkL7NH(i)) {
+                // Setup PO2SOconfig function
+                slave.PO2SOconfig = &ServoL7NH::setup;
+
+                // Create slave instance
+                m_Slaves[i] = std::make_unique<ServoL7NH>(i);
+            } else {
+                m_Slaves[i] = nullptr;
+            }
+        }
+
+        if (ec_config_map(&m_IOmap) <= 0) {
+            std::cout << "[EcatMaster::init] ec_config_map failed" << std::endl;
+            ec_close();
+            m_Initialized = false;
+            return false;
+        }
+
+        ec_configdc();
+
+        // After ec_config_map succeeded, slaves are in SAFE-OP state
+        std::cout << "[EcatMaster::init] Slaves mapped, state to SAFE_OP"
+                  << std::endl;
+
+        ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTCONFIG);
+
+        // Calculate expected WKC
+        m_ExpectedWKC = (ec_group[m_CurrentGroup].outputsWKC * 2) + ec_group[m_CurrentGroup].inputsWKC;
+        std::cout << "[EcatMaster::init] Expected WKC : " << m_ExpectedWKC
+                  << std::endl;
+
+        if (m_ExpectedWKC <= 0) {
+            std::cout
+                << "[EcatMaster::init] Expected WKC is 0. Check slave configurations."
+                << std::endl;
+            ec_close();
+            m_Initialized = false;
+            return false;
+        }
     }
 
     return reqOpState();
@@ -134,13 +155,17 @@ bool EcatMaster::start()
     }
 
     // Ensure previous threads are properly joined before starting new ones
-    if (m_Worker.joinable()) m_Worker.join();
-    if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
-    if (m_Monitor.joinable()) m_Monitor.join();
+    if (m_Worker.joinable())
+        m_Worker.join();
+    if (m_ErrorHandler.joinable())
+        m_ErrorHandler.join();
+    if (m_Monitor.joinable())
+        m_Monitor.join();
 
     // Start all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
-        if (m_Slaves[i] == nullptr) continue;
+        if (m_Slaves[i] == nullptr)
+            continue;
 
         m_Slaves[i]->start();
     }
@@ -161,13 +186,17 @@ void EcatMaster::stop()
     m_Running = false;
 
     // Wait for threads to finish
-    if (m_Worker.joinable()) m_Worker.join();
-    if (m_ErrorHandler.joinable()) m_ErrorHandler.join();
-    if (m_Monitor.joinable()) m_Monitor.join();
+    if (m_Worker.joinable())
+        m_Worker.join();
+    if (m_ErrorHandler.joinable())
+        m_ErrorHandler.join();
+    if (m_Monitor.joinable())
+        m_Monitor.join();
 
     // Stop all slaves
     for (int i = 1; i <= ec_slavecount; ++i) {
-        if (m_Slaves[i] == nullptr) continue;
+        if (m_Slaves[i] == nullptr)
+            continue;
 
         m_Slaves[i]->stop();
     }
@@ -234,6 +263,8 @@ ServoStatus EcatMaster::getServoStatus(int slaveId) const
 // Check if the adapter is valid by attempting to initialize and count slaves
 bool EcatMaster::isAdapterValid(const std::string& ifname)
 {
+    std::lock_guard<std::mutex> lock(m_ecatMutex);
+
     if (!ec_init(ifname.c_str())) {
         return false;
     }
@@ -249,6 +280,8 @@ bool EcatMaster::isAdapterValid(const std::string& ifname)
 // Request Operational state for all slaves
 bool EcatMaster::reqOpState()
 {
+    std::lock_guard<std::mutex> lock(m_ecatMutex);
+
     ec_slave[0].state = EC_STATE_OPERATIONAL;
 
     // Send one valid process data to make outputs in slaves happy
@@ -270,7 +303,8 @@ bool EcatMaster::reqOpState()
 
     // Check if all slaves are in OP state
     if (ec_slave[0].state != EC_STATE_OPERATIONAL) {
-        std::cout << "[EcatMaster::reqOpState] Failed to reach OP state" << std::endl;
+        std::cout << "[EcatMaster::reqOpState] Failed to reach OP state"
+                  << std::endl;
         return false;
     }
 
@@ -298,25 +332,34 @@ void EcatMaster::processLoop()
 
         for (const auto& cmd : localCmds) {
             int slaveId = cmd.slaveId;
-            if (slaveId < 0 || slaveId >= m_Slaves.size()) continue;
-            if (m_Slaves[slaveId] == nullptr) continue;
+            if (slaveId <= 0 || slaveId > m_Slaves.size())
+                continue;
+            if (m_Slaves[slaveId] == nullptr)
+                continue;
 
             m_Slaves[slaveId]->processCommand(cmd);
         }
 
         // 2. Process each slave PDO
         for (int i = 1; i <= ec_slavecount; ++i) {
-            if (m_Slaves[i] == nullptr) continue;
+            // Safety check: skip if slave instance creation failed
+            if (i > m_Slaves.size() || m_Slaves[i] == nullptr)
+                continue;
 
             m_Slaves[i]->processData();
         }
 
-        ec_send_processdata();
-        m_CurrentWKC.store(ec_receive_processdata(EC_TIMEOUTRET));
+        {
+            // Lock only for the hardware communication part
+            std::lock_guard<std::mutex> lock(m_ecatMutex);
 
-        if (ec_slavecount > 0) {
-            // Calculate DC sync offset (ns)
-            ec_sync(ec_DCtime, (int64_t)cycleTimeUs * 1000, &m_syncOffset);
+            ec_send_processdata();
+            m_CurrentWKC.store(ec_receive_processdata(EC_TIMEOUTRET));
+
+            if (ec_slavecount > 0) {
+                // Calculate DC sync offset (ns)
+                ec_sync(ec_DCtime, (int64_t)cycleTimeUs * 1000, &m_syncOffset);
+            }
         }
 
         // Sleep with DC adjustment
@@ -342,25 +385,34 @@ void EcatMaster::ecatCheck()
     int syncCounter = 0;
 
     while (m_Running) {
-        // If WKC is less than expected, or check state flag is set, check all slaves
+        // If WKC is less than expected, or check state flag is set, check all
+        // slaves
         int wkc = m_CurrentWKC.load();
 
-        // Force state check every 1 second (100 * 10ms) to ensure state synchronization
+        // Force state check every 1 second (100 * 10ms) to ensure state
+        // synchronization
         bool forceCheck = (++syncCounter >= 100);
 
         if (wkc < m_ExpectedWKC || ec_group[m_CurrentGroup].docheckstate || forceCheck) {
-            if (forceCheck) syncCounter = 0;
+            if (forceCheck)
+                syncCounter = 0;
 
-            // Clear check state flag
-            ec_group[m_CurrentGroup].docheckstate = FALSE;
-            // Read state of all slaves
-            ec_readstate();
+            // std::lock_guard<std::mutex> lock(m_ecatMutex);
+
+            // // Clear check state flag
+            // ec_group[m_CurrentGroup].docheckstate = FALSE;
+            // // Read state of all slaves
+            // ec_readstate();
+
             // Check each slave state
             slavesCheck();
 
-            // If check state flag is cleared and it wasn't a force check, all slaves are resumed
+            // If check state flag is cleared and it wasn't a force check, all slaves
+            // are resumed
             if (!ec_group[m_CurrentGroup].docheckstate && !forceCheck) {
-                std::cout << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL" << std::endl;
+                std::cout
+                    << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL"
+                    << std::endl;
             }
         }
 
@@ -371,13 +423,20 @@ void EcatMaster::ecatCheck()
 // Check each slave state and try to recover if not in OP state
 void EcatMaster::slavesCheck()
 {
+    std::lock_guard<std::mutex> lock(m_ecatMutex);
+
+    // Clear check state flag
+    ec_group[m_CurrentGroup].docheckstate = FALSE;
+    // Read state of all slaves
+    ec_readstate();
+
     for (int i = 1; i <= ec_slavecount; ++i) {
-        if (!m_Running) break;
+        if (!m_Running)
+            break;
 
         auto& slave = ec_slave[i];
 
-        if (slave.group == m_CurrentGroup
-            && slave.state != EC_STATE_OPERATIONAL) {
+        if (slave.group == m_CurrentGroup && slave.state != EC_STATE_OPERATIONAL) {
             std::cout << "[EcatMaster::slavesCheck] Slave " << i
                       << " state = " << slave.state
                       << " ALStatusCode = " << slave.ALstatuscode << std::endl;
@@ -465,18 +524,28 @@ void EcatMaster::slavesCheck()
     }
 }
 
-// Monitor loop to read SDO from slaves and update their status (e.g., overload ratio)
+// Monitor loop to read SDO from slaves and update their status (e.g., overload
+// ratio)
 void EcatMaster::monitorLoop()
 {
     constexpr int cycleTimeUs = 100'000; // 100ms
 
     while (m_Running) {
         for (int i = 1; i <= ec_slavecount; ++i) {
+            // Safety check: skip if slave instance creation failed
+            if (i > m_Slaves.size() || m_Slaves[i] == nullptr)
+                continue;
+
             int16_t overloadRatio = 0;
             int     size          = sizeof(overloadRatio);
 
-            if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size, &overloadRatio, EC_TIMEOUTRXM) > 0) {
-                m_Slaves[i]->setOverloadRatio(overloadRatio);
+            {
+                std::lock_guard<std::mutex> lock(m_ecatMutex);
+                if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size,
+                               &overloadRatio, EC_TIMEOUTRXM)
+                    > 0) {
+                    m_Slaves[i]->setOverloadRatio(overloadRatio);
+                }
             }
         }
         std::this_thread::sleep_for(std::chrono::microseconds(cycleTimeUs));
@@ -486,7 +555,8 @@ void EcatMaster::monitorLoop()
 // Get pointer to ServoL7NH instance (non-const)
 ServoL7NH* EcatMaster::getPtrServo(int slaveId)
 {
-    return const_cast<ServoL7NH*>(static_cast<const EcatMaster*>(this)->getPtrServo(slaveId));
+    return const_cast<ServoL7NH*>(
+        static_cast<const EcatMaster*>(this)->getPtrServo(slaveId));
 }
 
 // Get pointer to ServoL7NH instance (const)

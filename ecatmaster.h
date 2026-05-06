@@ -73,7 +73,8 @@ private:
 
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
 
-    std::mutex           m_cmdMutex;
+    mutable std::mutex m_ecatMutex;
+    std::mutex         m_cmdMutex;
     std::vector<Command> m_cmdQueue;
 };
 

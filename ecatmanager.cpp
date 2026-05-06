@@ -18,9 +18,23 @@ EcatManager::~EcatManager()
 
 bool EcatManager::connectMaster()
 {
+    if (m_isConnecting) {
+        qDebug() << "[EcatManager::connectMaster] Already attempting to connect, skipping...";
+        return false;
+    }
+
+    if (m_Master.isRunning()) {
+        qDebug() << "[EcatManager::connectMaster] Master is running...";
+        return true;
+    }
+
+    m_isConnecting = true;
+
     // try to connect with previous ifname first
     if (!m_ifname.isEmpty() && m_Master.isAdapterValid(m_ifname.toStdString())) {
-        return connectMaster(m_ifname);
+        bool ok        = connectMaster(m_ifname);
+        m_isConnecting = false;
+        return ok;
     }
 
     qInfo() << "[EcatManager::connectMaster] Failed to connect with previous ifname, or no ifname was set. "
@@ -29,10 +43,13 @@ bool EcatManager::connectMaster()
 
     // still no valid ifname found
     if (m_ifname.isEmpty()) {
+        m_isConnecting = false;
         return false;
     }
 
-    return connectMaster(m_ifname);
+    bool ok        = connectMaster(m_ifname);
+    m_isConnecting = false;
+    return ok;
 }
 
 bool EcatManager::connectMaster(const QString& ifname)
@@ -74,6 +91,9 @@ void EcatManager::reconnectMaster()
 void EcatManager::disconnectMaster()
 {
     qDebug() << "[EcatManager::disconnectMaster]";
+
+    // Reset connecting flag first to allow new attempts
+    m_isConnecting = false;
 
     // stop to terminate threads, reset init state
     m_Master.stop();
