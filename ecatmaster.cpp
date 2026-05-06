@@ -93,6 +93,8 @@ bool EcatMaster::init(const std::string& ifname)
         // Create slave instances
         m_Slaves.clear();
         m_Slaves.resize(ec_slavecount + 1);
+        m_lastSlaveStates.assign(ec_slavecount + 1, 0);
+
         for (int i = 1; i <= ec_slavecount; ++i) {
             auto& slave = ec_slave[i];
 
@@ -439,9 +441,11 @@ void EcatMaster::slavesCheck()
         auto& slave = ec_slave[i];
 
         if (slave.group == m_CurrentGroup && slave.state != EC_STATE_OPERATIONAL) {
-            std::cout << "[EcatMaster::slavesCheck] Slave " << i
-                      << " state = " << slave.state
-                      << " ALStatusCode = " << slave.ALstatuscode << std::endl;
+            if (m_lastSlaveStates[i] != slave.state) {
+                std::cout << "[EcatMaster::slavesCheck] Slave " << i << " state change: " << m_lastSlaveStates[i]
+                          << " -> " << slave.state << " (ALStatusCode = " << slave.ALstatuscode << ")" << std::endl;
+                m_lastSlaveStates[i] = slave.state;
+            }
 
             ec_group[m_CurrentGroup].docheckstate = TRUE;
             // One of the slaves is not in OP state
@@ -521,6 +525,16 @@ void EcatMaster::slavesCheck()
                 slave.islost = FALSE;
                 std::cout << "[EcatMaster::slavesCheck] MESSAGE : slave " << i
                           << " recovered" << std::endl;
+            }
+            if (m_lastSlaveStates[i] == EC_STATE_OPERATIONAL) {
+                // Was operational, now not
+                std::cout << "[EcatMaster::slavesCheck] Slave " << i << " lost OPERATIONAL state" << std::endl;
+            }
+            m_lastSlaveStates[i] = slave.state;
+        } else if (slave.group == m_CurrentGroup && slave.state == EC_STATE_OPERATIONAL) {
+            if (m_lastSlaveStates[i] != EC_STATE_OPERATIONAL) {
+                std::cout << "[EcatMaster::slavesCheck] Slave " << i << " is back to OPERATIONAL" << std::endl;
+                m_lastSlaveStates[i] = EC_STATE_OPERATIONAL;
             }
         }
     }

@@ -179,11 +179,20 @@ void EcatServer::onClientDisconnected()
 void EcatServer::onTimerTick()
 {
     // If EtherCAT master is not running, try to reconnect
-    if (m_ecatManager && !m_ecatManager->isMasterRunning()) {
-        qWarning() << "[EcatServer::onTimerTick] Ecat master is not running, try to reconnect...";
+    bool isRunning = m_ecatManager && m_ecatManager->isMasterRunning();
 
+    if (!isRunning) {
+        if (m_lastMasterRunningState) {
+            qWarning() << "[EcatServer::onTimerTick] Ecat master is not running, try to reconnect...";
+            m_lastMasterRunningState = false;
+        }
         m_ecatManager->reconnectMaster();
         return;
+    }
+
+    if (!m_lastMasterRunningState) {
+        qInfo() << "[EcatServer::onTimerTick] Ecat master is ONLINE";
+        m_lastMasterRunningState = true;
     }
 
     // If server is not listening, try to restart listening

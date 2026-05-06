@@ -96,6 +96,9 @@ private:
     // bool   m_wasWarning = false;
     // int8_t m_lastMode = 0;
     int16_t m_targetTorque = 0;
+    uint16_t m_lastEcatState = 0;
+    uint16_t m_lastStatusWord = 0;
+    bool m_lastPdoValid = true;
 
     mutable std::mutex m_statusMutex;
 };

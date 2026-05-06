@@ -447,17 +447,26 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     }
 
     // Only operate if in OPERATIONAL state
-    if (ec_slave[m_slaveId].state != EC_STATE_OPERATIONAL) {
-        qInfo() << "[ServoL7NH::stateCheck] ecat state NOT OP! Slave:" << m_slaveId
-                << "State:" << QString("0x%1").arg(ec_slave[m_slaveId].state, 0, 16)
-                << "ALStatus:" << QString("0x%1").arg(ec_slave[m_slaveId].ALstatuscode, 4, 16, QChar('0'));
+    uint16_t currentState = ec_slave[m_slaveId].state;
+    if (currentState != EC_STATE_OPERATIONAL) {
+        if (m_lastEcatState != currentState) {
+            qInfo() << "[ServoL7NH::stateCheck] ecat state NOT OP! Slave:" << m_slaveId
+                    << "State:" << QString("0x%1").arg(currentState, 0, 16)
+                    << "ALStatus:" << QString("0x%1").arg(ec_slave[m_slaveId].ALstatuscode, 4, 16, QChar('0'));
+            m_lastEcatState = currentState;
+        }
         return;
     }
+    m_lastEcatState = currentState;
 
     if (rxpdo == nullptr || txpdo == nullptr) {
-        qInfo() << "[ServoL7NH::stateCheck] pdo is nullptr...";
+        if (m_lastPdoValid) {
+            qInfo() << "[ServoL7NH::stateCheck] pdo is nullptr...";
+            m_lastPdoValid = false;
+        }
         return;
     }
+    m_lastPdoValid = true;
 
     uint16_t&       controlWord = rxpdo->control_word;
     const uint16_t& statusWord  = txpdo->status_word;
@@ -495,17 +504,22 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         }
     }
 
-    qInfo() << "[ServoL7NH::stateCheck] servo state transitions...";
+    // Only log if status word changed significantly (not just moving bits)
+    uint16_t currentStatus = statusWord & servoOD::SW_STATE_MASK2;
+    bool stateChanged = (currentStatus != m_lastStatusWord);
+    m_lastStatusWord = currentStatus;
 
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
     if ((statusWord & servoOD::SW_STATE_MASK1) == servoOD::SW_STATE_SWITCH_ON_DISABLED) {
+        if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Switch On Disabled -> Shutdown";
         controlWord = controlWord & bitF0 | servoOD::CW_SHUTDOWN;
 
         m_stateCheckCounter = stateCheckCycleCounter;
     }
     // from Ready to Switch On to Switched On
     else if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_READY_SWITCH_ON) {
+        if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Ready to Switch On -> Switch On";
         controlWord = controlWord & bitF0 | servoOD::CW_SWITCH_ON;
 
         m_stateCheckCounter = stateCheckCycleCounter;
@@ -517,9 +531,10 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
             // controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
             controlWord = servoOD::CW_SHUTDOWN; // clear other bits
 
-            qInfo() << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown";
+            if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Already tried to enable op. Drop to shutdown";
         } else {
             // Enable operation
+            if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Switched On -> Enable Operation";
             controlWord = controlWord & bitF0 | servoOD::CW_ENABLE_OP;
         }
 

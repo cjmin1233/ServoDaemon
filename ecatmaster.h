@@ -72,6 +72,7 @@ private:
     int64_t m_syncOffset = 0;
 
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
+    std::vector<uint16_t>               m_lastSlaveStates;
 
     mutable std::mutex m_ecatMutex;
     std::mutex         m_cmdMutex;

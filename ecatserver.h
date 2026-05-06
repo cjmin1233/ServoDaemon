@@ -40,8 +40,9 @@ private:
 
     const int m_tickCycleMs = 100; // 100ms for responsive watchdog and GUI
 
-    qint64    m_lastPacketTime    = 0;
-    const int m_watchdogTimeoutMs = 1500;
+    qint64    m_lastPacketTime         = 0;
+    const int m_watchdogTimeoutMs      = 1500;
+    bool      m_lastMasterRunningState = false;
 };
 
 #endif // ECATSERVER_H
