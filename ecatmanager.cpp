@@ -99,11 +99,6 @@ void EcatManager::disconnectMaster()
     m_Master.stop();
 }
 
-ErrorReason EcatManager::processCommand(const Command& cmd)
-{
-    return m_Master.processCommand(cmd);
-}
-
 // search for a valid EtherCAT adapter and update m_ifname
 void EcatManager::searchValidAdapter()
 {
@@ -114,6 +109,7 @@ void EcatManager::searchValidAdapter()
 
     ec_adaptert* adapter = ec_find_adapters();
     ec_adaptert* current = adapter;
+
     while (current != nullptr) {
         // qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
 

@@ -203,6 +203,8 @@ void EcatMaster::stop()
     m_Slaves.clear();
 
     if (m_Initialized) {
+        std::lock_guard<std::mutex> lock(m_ecatMutex);
+
         // Send one last process data to set slaves to INIT state
         ec_send_processdata();
         ec_receive_processdata(EC_TIMEOUTRET);
@@ -539,13 +541,11 @@ void EcatMaster::monitorLoop()
             int16_t overloadRatio = 0;
             int     size          = sizeof(overloadRatio);
 
-            {
-                std::lock_guard<std::mutex> lock(m_ecatMutex);
-                if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size,
-                               &overloadRatio, EC_TIMEOUTRXM)
-                    > 0) {
-                    m_Slaves[i]->setOverloadRatio(overloadRatio);
-                }
+            std::lock_guard<std::mutex> lock(m_ecatMutex);
+            if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size,
+                           &overloadRatio, EC_TIMEOUTRXM)
+                > 0) {
+                m_Slaves[i]->setOverloadRatio(overloadRatio);
             }
         }
         std::this_thread::sleep_for(std::chrono::microseconds(cycleTimeUs));
