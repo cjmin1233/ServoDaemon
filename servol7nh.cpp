@@ -251,7 +251,9 @@ void ServoL7NH::processData()
 
     if (rxpdo == nullptr || txpdo == nullptr) return;
 
-    if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_OP_ENABLED) {
+    bool isServoEnabled = (statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_OP_ENABLED;
+
+    if (isServoEnabled) {
         const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
 
         // main operation
@@ -285,11 +287,9 @@ void ServoL7NH::processData()
         }
 
         // update status
-        {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
-            m_Status.position = txpdo->actual_position;
-            m_Status.velocity = txpdo->actual_velocity;
-        }
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_Status.position = txpdo->actual_position;
+        m_Status.velocity = txpdo->actual_velocity;
     }
     // check state machine if not operational yet
     else {
@@ -405,6 +405,11 @@ void ServoL7NH::setTorque(int16_t torque)
 
 void ServoL7NH::processCommand(const Command& cmd)
 {
+    const auto* txpdo       = ptrTxPDO();
+    const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
+
+    if (currentMode == servoOD::Mode::HM) return;
+
     switch (cmd.cmdType) {
     case CommandType::MovePosition:
         setTargetPosition(cmd.value);
@@ -506,8 +511,8 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
     // Only log if status word changed significantly (not just moving bits)
     uint16_t currentStatus = statusWord & servoOD::SW_STATE_MASK2;
-    bool stateChanged = (currentStatus != m_lastStatusWord);
-    m_lastStatusWord = currentStatus;
+    bool     stateChanged  = (currentStatus != m_lastStatusWord);
+    m_lastStatusWord       = currentStatus;
 
     // State machine transitions
     // from Switch On Disabled to Ready to Switch On
