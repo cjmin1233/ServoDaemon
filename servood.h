@@ -176,6 +176,16 @@ constexpr int8_t HM_HOME_SWITCH_NEG_AND_INDEX  = 11; // Find index pulse after c
 constexpr int8_t HM_HOME_SWITCH_POS_AND_INDEX  = 7;  // Find index pulse after contacting home switch in positive direction
 constexpr int8_t HM_CURRENT_POS_AS_HOME        = 35; // Set current position as home without movement
 
-} // namespace cia402
+enum class HomingState : uint8_t {
+    NotStarted         = 0,
+    InProgress         = 1, // Bit 13=0, 12=0, 10=0
+    Interrupted        = 2, // Bit 13=0, 12=0, 10=1
+    AttainedNotReached = 3, // Bit 13=0, 12=1, 10=0
+    Completed          = 4, // Bit 13=0, 12=1, 10=1
+    ErrorMoving        = 5, // Bit 13=1, 12=0, 10=0
+    ErrorStopped       = 6  // Bit 13=1, 12=0, 10=1
+};
+
+} // namespace servoOD
 
 #endif // SERVOOD_H

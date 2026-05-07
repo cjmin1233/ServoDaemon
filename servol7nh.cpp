@@ -6,7 +6,6 @@
 
 #include "servoconfig.h"
 #include "servol7nh.h"
-#include "servood.h"
 
 // settling constants
 static constexpr int SETTLING_TIMEOUT      = 5000;
@@ -384,7 +383,7 @@ void ServoL7NH::setHome()
     rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear homing start bit
 
     m_flagHomingStart = true;
-    // m_isSettling      = false;
+    m_lastHMState     = servoOD::HomingState::NotStarted;
 }
 
 /*
@@ -408,7 +407,16 @@ void ServoL7NH::processCommand(const Command& cmd)
     const auto* txpdo       = ptrTxPDO();
     const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
 
-    if (currentMode == servoOD::Mode::HM) return;
+    // Stop command is always allowed even during homing
+    if (cmd.cmdType == CommandType::StopServo) {
+        stop();
+        return;
+    }
+
+    // During homing, other commands are ignored (unless homing is completed)
+    if (currentMode == servoOD::Mode::HM && m_lastHMState != servoOD::HomingState::Completed) {
+        return;
+    }
 
     switch (cmd.cmdType) {
     case CommandType::MovePosition:
@@ -628,49 +636,105 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
     auto&       controlWord = rxpdo->control_word;
     const auto& statusWord  = txpdo->status_word;
 
-    const bool isHomingStart = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
-    const bool isHomingError = statusWord & servoOD::SW_BIT_HOMING_ERROR;
-    // const bool isHomingAttained = statusWord & servoOD::SW_BIT_HOMING_ATTAINED;
+    // --- [1] Homing State Detection ---
+    // Combine Bit 13 (Error), 12 (Attained), 10 (Target Reached)
+    bool bit10 = (statusWord & servoOD::SW_BIT_TARGET_REACHED) != 0;
+    bool bit12 = (statusWord & servoOD::SW_BIT_HOMING_ATTAINED) != 0;
+    bool bit13 = (statusWord & servoOD::SW_BIT_HOMING_ERROR) != 0;
 
-    // Homing error handling
-    if (isHomingError) {
-        qInfo() << "[ServoL7NH::processHM] homing error occurred, try to restart homing...";
-
-        // restart homing
-        controlWord       &= ~(servoOD::CW_BIT_NEW_SETPOINT);
-        m_flagHomingStart  = true;
-
-        return;
+    // Simplified bit combination to state mapping
+    servoOD::HomingState currentState;
+    if (!bit13) {
+        if (!bit12) {
+            currentState = bit10 ? servoOD::HomingState::Interrupted : servoOD::HomingState::InProgress;
+        } else {
+            currentState = bit10 ? servoOD::HomingState::Completed : servoOD::HomingState::AttainedNotReached;
+        }
+    } else {
+        currentState = bit10 ? servoOD::HomingState::ErrorStopped : servoOD::HomingState::ErrorMoving;
     }
 
-    // Homing start request, but not yet started
-    if (m_flagHomingStart && !isHomingStart) {
-        // start homing
-        controlWord       |= servoOD::CW_BIT_NEW_SETPOINT;
-        m_flagHomingStart  = false; // Reset homing flag
-
-        return;
+    // Log state transitions
+    if (m_lastHMState != currentState) {
+        switch (currentState) {
+        case servoOD::HomingState::InProgress:
+            qInfo() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing procedure is in progress";
+            break;
+        case servoOD::HomingState::Interrupted:
+            qWarning() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing procedure is interrupted or not started";
+            break;
+        case servoOD::HomingState::AttainedNotReached:
+            qInfo() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing attained, moving to home offset...";
+            break;
+        case servoOD::HomingState::Completed:
+            qInfo() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing procedure completed successfully";
+            break;
+        case servoOD::HomingState::ErrorMoving:
+            qCritical() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing error occurred (moving)";
+            break;
+        case servoOD::HomingState::ErrorStopped:
+            qCritical() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing error occurred (stopped)";
+            break;
+        }
+        m_lastHMState = currentState;
     }
 
-    // // Homing processing...
-    // if (isHomingStart) {
-    //     // Homing Attained, enter settling phase
-    //     if (isHomingAttained && !m_isSettling) {
-    //         qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
+    // --- [2] State-based Logic ---
+    switch (currentState) {
+    case servoOD::HomingState::InProgress:
+    case servoOD::HomingState::AttainedNotReached:
+        // Just wait
+        break;
 
-    //         m_isSettling            = true;
-    //         m_settlingTimeout       = SETTLING_TIMEOUT;
-    //         m_settlingStableCounter = 0;
+    case servoOD::HomingState::Completed:
+        // Homing finished successfully
+        if (controlWord & servoOD::CW_BIT_NEW_SETPOINT) {
+            qInfo() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Homing procedure completed successfully. Transitioning to PP mode.";
+            controlWord &= ~(servoOD::CW_BIT_NEW_SETPOINT);
 
-    //         return;
-    //     }
+            // Automatically switch to PP mode and set target to 0
+            setTargetPosition(0);
+        }
+        break;
 
-    //     // Settling phase logic
-    //     if (m_isSettling) {
-    //         settling(rxpdo, txpdo);
-    //     }
-    // }
+    case servoOD::HomingState::Interrupted:
+        // Check if we need to start or restart
+        if (m_flagHomingStart) {
+            qInfo() << "[ServoL7NH::processHM] Slave" << m_slaveId << ": Starting homing operation";
+            controlWord       |= servoOD::CW_BIT_NEW_SETPOINT;
+            m_flagHomingStart  = false;
+        }
+        break;
+
+    case servoOD::HomingState::ErrorMoving:
+    case servoOD::HomingState::ErrorStopped:
+        // Handle error: Reset start bit and flag for retry
+        if (controlWord & servoOD::CW_BIT_NEW_SETPOINT) {
+            controlWord       &= ~(servoOD::CW_BIT_NEW_SETPOINT);
+            m_flagHomingStart  = true; // Set flag to allow retry after error reset
+        }
+        break;
+    }
 }
+
+// // Homing processing...
+// if (isHomingStart) {
+//     // Homing Attained, enter settling phase
+//     if (isHomingAttained && !m_isSettling) {
+//         qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling check...";
+
+//         m_isSettling            = true;
+//         m_settlingTimeout       = SETTLING_TIMEOUT;
+//         m_settlingStableCounter = 0;
+
+//         return;
+//     }
+
+//     // Settling phase logic
+//     if (m_isSettling) {
+//         settling(rxpdo, txpdo);
+//     }
+// }
 
 /*
 void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)

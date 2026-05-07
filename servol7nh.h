@@ -2,6 +2,7 @@
 #define SERVOL7NH_H
 
 #include "../CommonConfig.h"
+#include "servood.h"
 #include "slave.h"
 #include <mutex>
 
@@ -95,10 +96,11 @@ private:
 
     // bool   m_wasWarning = false;
     // int8_t m_lastMode = 0;
-    int16_t m_targetTorque = 0;
-    uint16_t m_lastEcatState = 0;
-    uint16_t m_lastStatusWord = 0;
-    bool m_lastPdoValid = true;
+    int16_t              m_targetTorque   = 0;
+    uint16_t             m_lastEcatState  = 0;
+    uint16_t             m_lastStatusWord = 0;
+    bool                 m_lastPdoValid   = true;
+    servoOD::HomingState m_lastHMState    = static_cast<servoOD::HomingState>(0);
 
     mutable std::mutex m_statusMutex;
 };
