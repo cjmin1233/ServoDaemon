@@ -46,6 +46,7 @@ constexpr uint16_t SW_BIT_INTERNAL_LIMIT  = (1 << 11); // Internal limit active
 // --- Homing Mode (HM) Specific Bits ---
 constexpr uint16_t SW_BIT_HOMING_ATTAINED = (1 << 12); // Homing procedure is completed
 constexpr uint16_t SW_BIT_HOMING_ERROR    = (1 << 13); // An error occurred during homing
+constexpr uint16_t SW_BIT_ABS_VALID       = (1 << 14); // Absolute position is valid (L7NH specific)
 
 // --- [3] Modes of Operation (0x6060) ---
 enum class Mode : int8_t {

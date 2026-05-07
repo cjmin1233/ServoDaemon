@@ -404,8 +404,12 @@ void ServoL7NH::setTorque(int16_t torque)
 
 void ServoL7NH::processCommand(const Command& cmd)
 {
-    const auto* txpdo       = ptrTxPDO();
+    const auto* txpdo = ptrTxPDO();
+
+    if (txpdo == nullptr) return;
+
     const auto& currentMode = static_cast<servoOD::Mode>(txpdo->mode_disp);
+    const auto& statusWord  = txpdo->status_word;
 
     // Stop command is always allowed even during homing
     if (cmd.cmdType == CommandType::StopServo) {
@@ -420,9 +424,22 @@ void ServoL7NH::processCommand(const Command& cmd)
 
     switch (cmd.cmdType) {
     case CommandType::MovePosition:
+        // 절대치가 유효하지 않으면 PP 모드 구동을 거부하고 Homing 요구
+        if (!(statusWord & servoOD::SW_BIT_ABS_VALID)) {
+            qWarning() << "[ServoL7NH::processCommand] Slave" << m_slaveId
+                       << ": Absolute position invalid! Homing required.";
+            return;
+        }
         setTargetPosition(cmd.value);
         break;
     case CommandType::SetHome:
+        // 절대치가 이미 유효하다면 Homing 건너뛰고 즉시 PP 모드로 전환
+        if (statusWord & servoOD::SW_BIT_ABS_VALID) {
+            qInfo() << "[ServoL7NH::processCommand] Slave" << m_slaveId
+                    << ": Absolute position already valid. Skipping homing.";
+            setTargetPosition(0);
+            return;
+        }
         setHome();
         break;
     case CommandType::SetTorque:

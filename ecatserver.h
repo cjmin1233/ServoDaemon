@@ -38,7 +38,7 @@ private:
 
     EcatManager* m_ecatManager = nullptr;
 
-    const int m_tickCycleMs = 100; // 100ms for responsive watchdog and GUI
+    const int m_tickCycleMs = 1000;
 
     qint64    m_lastPacketTime         = 0;
     const int m_watchdogTimeoutMs      = 1500;
