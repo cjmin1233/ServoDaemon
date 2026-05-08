@@ -352,8 +352,15 @@ void ServoL7NH::setTargetPosition(int32_t pos)
 
     if (rxpdo == nullptr) return;
 
+    int32_t target_position = pos * m_pulsePerMm; // Calculate target position
+
+    if (target_position < 0 || target_position > m_posLimit) {
+        // target position out of bounds
+        return;
+    }
+
     rxpdo->mode            = static_cast<int8_t>(servoOD::Mode::PP);
-    rxpdo->target_position = pos * m_pulsePerMm; // Calculate target position
+    rxpdo->target_position = target_position;
 
     // rxpdo->target_torque = 0; // Clear target torque
     // m_targetTorque       = 0;
@@ -445,9 +452,9 @@ void ServoL7NH::processCommand(const Command& cmd)
     case CommandType::SetTorque:
         // setTorque(cmd.value);
         break;
-    case CommandType::StopServo:
-        stop();
-        break;
+    // case CommandType::StopServo:
+    //     stop();
+    //     break;
     default:
         break;
     }

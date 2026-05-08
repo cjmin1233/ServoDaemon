@@ -41,7 +41,7 @@ private:
     const int m_tickCycleMs = 1000;
 
     qint64    m_lastPacketTime         = 0;
-    const int m_watchdogTimeoutMs      = 1500;
+    const int m_watchdogTimeoutMs      = 5000;
     bool      m_lastMasterRunningState = false;
 };
 

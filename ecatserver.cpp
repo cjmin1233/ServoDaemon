@@ -16,10 +16,9 @@ EcatServer::EcatServer(QObject* parent)
     , m_timer(new QTimer(this))
     , m_ecatManager(new EcatManager(this))
 {
-    QObject::connect(m_server, &QTcpServer::newConnection,
-                     this, &EcatServer::onServerConnection);
-    QObject::connect(m_timer, &QTimer::timeout,
-                     this, &EcatServer::onTimerTick);
+    QObject::connect(m_server, &QTcpServer::newConnection, this,
+                     &EcatServer::onServerConnection);
+    QObject::connect(m_timer, &QTimer::timeout, this, &EcatServer::onTimerTick);
 }
 
 EcatServer::~EcatServer()
@@ -35,7 +34,8 @@ void EcatServer::start()
 
     // 1. Connect Ecat master
     if (!m_ecatManager->connectMaster()) {
-        qWarning() << "[EcatServer::start] Ecat Master: OFFLINE. Try to reconnect later...";
+        qWarning() << "[EcatServer::start] Ecat Master: OFFLINE. Try to reconnect "
+                      "later...";
 
         // start timer to reconnect
         startTimer();
@@ -45,10 +45,13 @@ void EcatServer::start()
     qInfo() << "[EcatServer::start] Ecat Master: ONLINE";
 
     // 2. Connect server
-    if (!m_server->listen(QHostAddress(Config::HOST /*127.0.0.1*/), Config::PORT /*5000*/)) {
-        qWarning() << "[EcatServer::start] TCP Server: LISTEN FAILED -" << m_server->errorString();
+    if (!m_server->listen(QHostAddress(Config::HOST /*127.0.0.1*/),
+                          Config::PORT /*5000*/)) {
+        qWarning() << "[EcatServer::start] TCP Server: LISTEN FAILED -"
+                   << m_server->errorString();
     } else {
-        qInfo() << "[EcatServer::start] TCP Server: LISTENING on port" << Config::PORT;
+        qInfo() << "[EcatServer::start] TCP Server: LISTENING on port"
+                << Config::PORT;
     }
 
     // start timer
@@ -95,7 +98,8 @@ void EcatServer::onServerConnection()
         QTcpSocket* newSocket = m_server->nextPendingConnection();
 
         if (m_client) {
-            qWarning() << "[EcatServer::onServerConnection] Kicking old client to accept new connection.";
+            qWarning() << "[EcatServer::onServerConnection] Kicking old client to "
+                          "accept new connection.";
             m_client->disconnectFromHost();
             m_client->deleteLater();
             m_client = nullptr;
@@ -104,10 +108,10 @@ void EcatServer::onServerConnection()
         m_client         = newSocket;
         m_lastPacketTime = QDateTime::currentMSecsSinceEpoch();
 
-        QObject::connect(m_client, &QTcpSocket::readyRead,
-                         this, &EcatServer::onClientReadyread);
-        QObject::connect(m_client, &QTcpSocket::disconnected,
-                         this, &EcatServer::onClientDisconnected);
+        QObject::connect(m_client, &QTcpSocket::readyRead, this,
+                         &EcatServer::onClientReadyread);
+        QObject::connect(m_client, &QTcpSocket::disconnected, this,
+                         &EcatServer::onClientDisconnected);
 
         qInfo() << "[EcatServer::onServerConnection] New client connected.";
     }
@@ -116,7 +120,8 @@ void EcatServer::onServerConnection()
 void EcatServer::onClientReadyread()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
-    if (!socket) return;
+    if (!socket)
+        return;
 
     // Update watchdog timestamp on ANY data received
     m_lastPacketTime = QDateTime::currentMSecsSinceEpoch();
@@ -157,7 +162,8 @@ void EcatServer::onClientReadyread()
 void EcatServer::onClientDisconnected()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
-    if (!socket) return;
+    if (!socket)
+        return;
 
     if (m_client == socket) {
         m_client = nullptr;
@@ -179,11 +185,12 @@ void EcatServer::onClientDisconnected()
 void EcatServer::onTimerTick()
 {
     // If EtherCAT master is not running, try to reconnect
-    bool isRunning = m_ecatManager && m_ecatManager->isMasterRunning();
+    bool isRunning = m_ecatManager->isMasterRunning();
 
     if (!isRunning) {
         if (m_lastMasterRunningState) {
-            qWarning() << "[EcatServer::onTimerTick] Ecat master is not running, try to reconnect...";
+            qWarning() << "[EcatServer::onTimerTick] Ecat master is not running, try "
+                          "to reconnect...";
             m_lastMasterRunningState = false;
         }
         m_ecatManager->reconnectMaster();
@@ -197,18 +204,21 @@ void EcatServer::onTimerTick()
 
     // If server is not listening, try to restart listening
     if (m_server && !m_server->isListening()) {
-        qWarning() << "[EcatServer::onTimerTick] Ecat server is not listening, try to restart...";
+        qWarning() << "[EcatServer::onTimerTick] Ecat server is not listening, try "
+                      "to restart...";
 
         m_server->listen(QHostAddress(Config::HOST), Config::PORT);
         return;
     }
 
-    if (!m_client || m_client->state() != QAbstractSocket::ConnectedState) return;
+    if (!m_client || m_client->state() != QAbstractSocket::ConnectedState)
+        return;
 
     // Watchdog check
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (now - m_lastPacketTime > m_watchdogTimeoutMs) {
-        qWarning() << "[EcatServer::onTimerTick] Watchdog timeout! Halting all servos.";
+        qWarning()
+            << "[EcatServer::onTimerTick] Watchdog timeout! Halting all servos.";
 
         // // Stop all servos
         // int totalSlaves = m_ecatManager->getSlaveCount();
@@ -254,13 +264,15 @@ void EcatServer::startTimer()
     }
 }
 
-void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in, const Command& cmd)
+void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in,
+                                const Command& cmd)
 {
     if (!in.commitTransaction()) {
         return;
     }
 
-    // If it's just a heartbeat, we are done (timestamp already updated in onClientReadyread)
+    // If it's just a heartbeat, we are done (timestamp already updated in
+    // onClientReadyread)
     if (cmd.cmdType == CommandType::Heartbeat) {
         return;
     }
