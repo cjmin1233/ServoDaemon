@@ -336,21 +336,16 @@ void EcatMaster::processLoop()
 
         for (const auto& cmd : localCmds) {
             int slaveId = cmd.slaveId;
-            if (slaveId <= 0 || slaveId >= m_Slaves.size())
-                continue;
-            if (m_Slaves[slaveId] == nullptr)
-                continue;
-
-            m_Slaves[slaveId]->processCommand(cmd);
+            if (slaveId > 0 && slaveId < (int)m_Slaves.size() && m_Slaves[slaveId]) {
+                m_Slaves[slaveId]->processCommand(cmd);
+            }
         }
 
         // 2. Process each slave PDO
-        for (int i = 1; i <= ec_slavecount; ++i) {
-            // Safety check: skip if slave instance creation failed
-            if (i >= m_Slaves.size() || m_Slaves[i] == nullptr)
-                continue;
-
-            m_Slaves[i]->processData();
+        for (size_t i = 1; i < m_Slaves.size(); ++i) {
+            if (m_Slaves[i]) {
+                m_Slaves[i]->processData();
+            }
         }
 
         {
@@ -535,16 +530,15 @@ void EcatMaster::monitorLoop()
     constexpr int cycleTimeUs = 100'000; // 100ms
 
     while (m_Running) {
-        for (int i = 1; i <= ec_slavecount; ++i) {
-            // Safety check: skip if slave instance creation failed
-            if (i > m_Slaves.size() || m_Slaves[i] == nullptr)
+        for (size_t i = 1; i < m_Slaves.size(); ++i) {
+            if (m_Slaves[i] == nullptr)
                 continue;
 
             int16_t overloadRatio = 0;
             int     size          = sizeof(overloadRatio);
 
             std::lock_guard<std::mutex> lock(m_ecatMutex);
-            if (ec_SDOread(i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size,
+            if (ec_SDOread((uint16)i, servoOD::IDX_ACCUMULATED_OVERLOAD, 0, FALSE, &size,
                            &overloadRatio, EC_TIMEOUTRXM)
                 > 0) {
                 m_Slaves[i]->setOverloadRatio(overloadRatio);

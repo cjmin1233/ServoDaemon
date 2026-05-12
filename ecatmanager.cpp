@@ -72,13 +72,25 @@ bool EcatManager::connectMaster(const QString& ifname)
 
 void EcatManager::reconnectMaster()
 {
+    // Prevent overlapping reconnection attempts
+    if (m_isConnecting) {
+        return;
+    }
+
     qInfo() << "[EcatManager::reconnectMaster] Attempting to reconnect master...";
 
-    // disconnect first to ensure a clean state
-    disconnectMaster();
+    // Mark as connecting to block other calls during the delay
+    m_isConnecting = true;
+
+    // stop to terminate threads, reset init state
+    // We don't call disconnectMaster() here because it resets m_isConnecting
+    m_Master.stop();
 
     // wait for a moment to allow hardware/drivers to settle without blocking the event loop
     QTimer::singleShot(100, this, [this]() {
+        // Reset flag just before connectMaster so it can proceed
+        m_isConnecting = false;
+
         // try to connect again using the main connection logic
         if (connectMaster()) {
             qInfo() << "[EcatManager::reconnectMaster] Reconnection successful!";

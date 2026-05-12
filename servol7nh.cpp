@@ -24,7 +24,7 @@ static constexpr int SETTLING_STABLE_COUNT = 50;
  * @return True if successful, false if a communication error occurs.
  */
 template <typename T>
-int sdoWrite(uint16 slaveId, uint16 index, uint8 subIndex, T value, const char* label = nullptr)
+bool sdoWrite(uint16 slaveId, uint16 index, uint8 subIndex, T value, const char* label = nullptr)
 {
     T data = value;
 
@@ -38,13 +38,13 @@ int sdoWrite(uint16 slaveId, uint16 index, uint8 subIndex, T value, const char* 
                 << QString("Index: 0x%1:%2").arg(index, 4, 16, QChar('0')).arg(subIndex)
                 << "Value:" << value;
         */
-        return 1;
+        return true;
     } else {
         // Log critical failure with detailed information
         qCritical() << "[SDO WRITE FAILED]" << (label ? label : "Unknown")
                     << QString("Index: 0x%1:%2").arg(index, 4, 16, QChar('0')).arg(subIndex)
                     << "Value:" << value;
-        return 0;
+        return false;
     }
 }
 
@@ -85,52 +85,52 @@ int ServoL7NH::setup(uint16 slaveId)
     // Verify it's name starts with "L7NH"
     if (std::string(ec_slave[slaveId].name).find("L7NH") != 0) return 0;
 
-    int success = 1; // SOEM callbacks expect 1 on success
+    bool ok = true;
 
     // Set PDO mappings
-    success &= setupPDO(slaveId);
+    ok &= setupPDO(slaveId);
 
     // Set position objects
-    success &= setupPosition(slaveId);
+    ok &= setupPosition(slaveId);
 
     // Set homing objects
-    success &= setupHoming(slaveId);
+    ok &= setupHoming(slaveId);
 
     // Setup torque objects
-    success &= setupTorque(slaveId);
+    ok &= setupTorque(slaveId);
 
     // etc...
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-    success &= sdoWrite(slaveId, servoOD::IDX_POSITION_WINDOW, 0, cfg.positionWindow, "Position Window");
-    success &= sdoWrite(slaveId, servoOD::IDX_QUICK_STOP_OPTION, 0, cfg.quickStopOption, "Quick Stop Option");
-    success &= sdoWrite(slaveId, servoOD::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
-    success &= sdoWrite(slaveId, servoOD::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
+    ok &= sdoWrite(slaveId, servoOD::IDX_POSITION_WINDOW, 0, cfg.positionWindow, "Position Window");
+    ok &= sdoWrite(slaveId, servoOD::IDX_QUICK_STOP_OPTION, 0, cfg.quickStopOption, "Quick Stop Option");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SHUTDOWN_OPTION, 0, cfg.shutdownOption, "Shutdown Option");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HALT_OPTION, 0, cfg.haltOption, "Halt Option");
 
-    int32_t posLimitMax  = calcPosLimit(slaveId);
-    success             &= sdoWrite(slaveId, servoOD::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
+    int32_t posLimitMax = calcPosLimit(slaveId);
+    ok &= sdoWrite(slaveId, servoOD::IDX_POSITION_LIMIT, 2, posLimitMax, "Position Limit Max");
 
     // Mechanical Specs
     // *** effective after reboot ***
-    success &= sdoWrite(slaveId, servoOD::IDX_ROTATION_DIRECTION, 0, cfg.rotationDirection, "Rotation Direction");
-    success &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
-    success &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
+    ok &= sdoWrite(slaveId, servoOD::IDX_ROTATION_DIRECTION, 0, cfg.rotationDirection, "Rotation Direction");
+    ok &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 1, cfg.motorRevolutions, "Motor Revolutions");
+    ok &= sdoWrite(slaveId, servoOD::IDX_GEAR_RATIO, 2, cfg.shaftRevolutions, "Shaft Revolutions");
 
-    qInfo() << "[ServoL7NH::setup] Result: " << (success ? "Success" : "Failed");
+    qInfo() << "[ServoL7NH::setup] Result: " << (ok ? "Success" : "Failed");
 
-    return success;
+    return ok ? 1 : 0;
 }
 
-int ServoL7NH::setupPDO(uint16 slaveId)
+bool ServoL7NH::setupPDO(uint16 slaveId)
 {
-    int success = 1; // SOEM callbacks expect 1 on success
+    bool ok = true; // SOEM callbacks expect 1 on success
 
     // --- [STEP 1] RXPDO Mapping Content (0x1600) ---
     uint16_t rxpdoIndex = servoOD::IDX_RXPDO_MAPPING_1;
     uint8_t  zero       = 0;
 
     // Set mapping count to 0 to clear existing mappings
-    success &= sdoWrite(slaveId, rxpdoIndex, 0, zero, "RxPDO Map Count 0");
+    ok &= sdoWrite(slaveId, rxpdoIndex, 0, zero, "RxPDO Map Count 0");
 
     uint32_t rxpdoEntries[] = {
         servoOD::ENTRY_RX_CONTROL_WORD,
@@ -144,16 +144,16 @@ int ServoL7NH::setupPDO(uint16 slaveId)
 
     for (uint8_t i = 0; i < entryCount; ++i) {
         // Write each mapping entry
-        success &= sdoWrite(slaveId, rxpdoIndex, i + 1, rxpdoEntries[i], "RxPDO Map Entry");
+        ok &= sdoWrite(slaveId, rxpdoIndex, i + 1, rxpdoEntries[i], "RxPDO Map Entry");
     }
     // Finalize the mapping count
-    success &= sdoWrite(slaveId, rxpdoIndex, 0, entryCount, "RxPDO Map Count");
+    ok &= sdoWrite(slaveId, rxpdoIndex, 0, entryCount, "RxPDO Map Count");
 
     // --- [STEP 2] TXPDO Mapping Content (0x1A00) ---
     uint16_t txpdoIndex = servoOD::IDX_TXPDO_MAPPING_1;
 
     // same as rxpdo: clear existing mappings first
-    success &= sdoWrite(slaveId, txpdoIndex, 0, zero, "TxPDO Map Count 0");
+    ok &= sdoWrite(slaveId, txpdoIndex, 0, zero, "TxPDO Map Count 0");
 
     uint32_t txpdoEntries[] = {
         servoOD::ENTRY_TX_STATUS_WORD,
@@ -168,77 +168,77 @@ int ServoL7NH::setupPDO(uint16 slaveId)
 
     for (uint8_t i = 0; i < entryCount; ++i) {
         // Write each mapping entry
-        success &= sdoWrite(slaveId, txpdoIndex, i + 1, txpdoEntries[i], "TxPDO Map Entry");
+        ok &= sdoWrite(slaveId, txpdoIndex, i + 1, txpdoEntries[i], "TxPDO Map Entry");
     }
     // Finalize the mapping count
-    success &= sdoWrite(slaveId, txpdoIndex, 0, entryCount, "TxPDO Map Count");
+    ok &= sdoWrite(slaveId, txpdoIndex, 0, entryCount, "TxPDO Map Count");
 
     // --- [STEP 3] Sync Manager 2 (RxPDO) & 3 (TxPDO) Assignment ---
     // RxPDO
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, zero, "SM2 Assign Count 0");
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 1, rxpdoIndex, "SM2 Assign RxPDO");
-    entryCount  = 1;
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, entryCount, "SM2 Assign Count");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, zero, "SM2 Assign Count 0");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 1, rxpdoIndex, "SM2 Assign RxPDO");
+    entryCount = 1;
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM2_RXPDO_ASSIGN, 0, entryCount, "SM2 Assign Count");
 
     // TxPDO
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, zero, "SM3 Assign Count 0");
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 1, txpdoIndex, "SM3 Assign TxPDO");
-    entryCount  = 1;
-    success    &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, entryCount, "SM3 Assign Count");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, zero, "SM3 Assign Count 0");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 1, txpdoIndex, "SM3 Assign TxPDO");
+    entryCount = 1;
+    ok &= sdoWrite(slaveId, servoOD::IDX_SM3_TXPDO_ASSIGN, 0, entryCount, "SM3 Assign Count");
 
-    return success;
+    return ok;
 }
 
-int ServoL7NH::setupPosition(uint16 slaveId)
+bool ServoL7NH::setupPosition(uint16 slaveId)
 {
-    int success = 1; // SOEM callbacks expect 1 on success
+    bool ok = true; // SOEM callbacks expect 1 on success
 
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Set position objects
-    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_VELOCITY, 0, cfg.profileVelocity, "Profile Velocity");
-    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
-    success &= sdoWrite(slaveId, servoOD::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
-    success &= sdoWrite(slaveId, servoOD::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
-    success &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
-    success &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_AVG_FILTER, 0, cfg.posCommandAvgFilter, "Position Command Avg Filter");
-    success &= sdoWrite(slaveId, servoOD::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
+    ok &= sdoWrite(slaveId, servoOD::IDX_PROFILE_VELOCITY, 0, cfg.profileVelocity, "Profile Velocity");
+    ok &= sdoWrite(slaveId, servoOD::IDX_PROFILE_ACCEL, 0, cfg.profileAccel, "Profile Accel");
+    ok &= sdoWrite(slaveId, servoOD::IDX_PROFILE_DECEL, 0, cfg.profileDecel, "Profile Decel");
+    ok &= sdoWrite(slaveId, servoOD::IDX_STOP_DECEL, 0, cfg.stopDecel, "Stop Decel");
+    ok &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_FILTER, 0, cfg.posCommandFilter, "Position Command Filter");
+    ok &= sdoWrite(slaveId, servoOD::IDX_POS_COMMAND_AVG_FILTER, 0, cfg.posCommandAvgFilter, "Position Command Avg Filter");
+    ok &= sdoWrite(slaveId, servoOD::IDX_POS_LIMIT_FUNCTION, 0, cfg.posLimitFunc, "Position Limit Function");
 
-    return success;
+    return ok;
 }
 
-int ServoL7NH::setupHoming(uint16 slaveId)
+bool ServoL7NH::setupHoming(uint16 slaveId)
 {
-    int success = 1; // SOEM callbacks expect 1 on success
+    bool ok = true; // SOEM callbacks expect 1 on success
 
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Set homing objects
-    success &= sdoWrite(slaveId, servoOD::IDX_HOME_OFFSET, 0, cfg.homeOffset, "Home Offset");
-    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_METHOD, 0, cfg.homingMethod, "Homing Method");
-    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 1, cfg.homingSpdSwitch, "Homing Speed Switch");
-    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 2, cfg.homingSpdZero, "Homing Speed Zero");
-    success &= sdoWrite(slaveId, servoOD::IDX_HOMING_ACCEL, 0, cfg.homingAccel, "Homing Accel");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HOME_OFFSET, 0, cfg.homeOffset, "Home Offset");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HOMING_METHOD, 0, cfg.homingMethod, "Homing Method");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 1, cfg.homingSpdSwitch, "Homing Speed Switch");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HOMING_SPEED, 2, cfg.homingSpdZero, "Homing Speed Zero");
+    ok &= sdoWrite(slaveId, servoOD::IDX_HOMING_ACCEL, 0, cfg.homingAccel, "Homing Accel");
 
-    return success;
+    return ok;
 }
 
-int ServoL7NH::setupTorque(uint16 slaveId)
+bool ServoL7NH::setupTorque(uint16 slaveId)
 {
-    int success = 1; // SOEM callbacks expect 1 on success
+    bool ok = true; // SOEM callbacks expect 1 on success
 
     const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
     // Setup torque objects
-    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_LIMIT_FUNCTION, 0, cfg.torqueLimitFunc, "Torque Limit Func");
-    success &= sdoWrite(slaveId, servoOD::IDX_SPEED_LIMIT_FUNCTION, 0, cfg.speedLimitFunc, "Speed Limit Func");
-    success &= sdoWrite(slaveId, servoOD::IDX_POSITIVE_TORQUE_LIMIT, 0, cfg.posTorqueLimit, "Positive Torque Limit");
-    success &= sdoWrite(slaveId, servoOD::IDX_NEGATIVE_TORQUE_LIMIT, 0, cfg.negTorqueLimit, "Negative Torque Limit");
-    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SPEED_LIMIT, 0, cfg.torqueSpeedLimit, "Torque Speed Limit");
-    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SLOPE, 0, cfg.torqueSlope, "Torque Slope");
-    success &= sdoWrite(slaveId, servoOD::IDX_TORQUE_OFFSET, 0, cfg.torqueOffset, "Torque Offset");
+    ok &= sdoWrite(slaveId, servoOD::IDX_TORQUE_LIMIT_FUNCTION, 0, cfg.torqueLimitFunc, "Torque Limit Func");
+    ok &= sdoWrite(slaveId, servoOD::IDX_SPEED_LIMIT_FUNCTION, 0, cfg.speedLimitFunc, "Speed Limit Func");
+    ok &= sdoWrite(slaveId, servoOD::IDX_POSITIVE_TORQUE_LIMIT, 0, cfg.posTorqueLimit, "Positive Torque Limit");
+    ok &= sdoWrite(slaveId, servoOD::IDX_NEGATIVE_TORQUE_LIMIT, 0, cfg.negTorqueLimit, "Negative Torque Limit");
+    ok &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SPEED_LIMIT, 0, cfg.torqueSpeedLimit, "Torque Speed Limit");
+    ok &= sdoWrite(slaveId, servoOD::IDX_TORQUE_SLOPE, 0, cfg.torqueSlope, "Torque Slope");
+    ok &= sdoWrite(slaveId, servoOD::IDX_TORQUE_OFFSET, 0, cfg.torqueOffset, "Torque Offset");
 
-    return success;
+    return ok;
 }
 
 void ServoL7NH::processData()
@@ -473,9 +473,7 @@ const bool ServoL7NH::isRunning() const
 
 void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 {
-    static constexpr int      stateCheckCycleCounter = 20;
-    static constexpr uint16_t bitF0                  = 0xF0;
-    static constexpr uint16_t bit0F                  = 0x0F;
+    static constexpr int stateCheckCycleCounter = 20;
 
     // Cycle delay for state check
     if (m_stateCheckCounter > 0) {
@@ -513,8 +511,8 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         qWarning() << "[ServoL7NH::stateCheck] Servo FAULT Detected!";
 
         // Set control word
-        controlWord &= bit0F;                   // clear bit 4 to 15
-        controlWord |= servoOD::CW_FAULT_RESET; // bit 7: Fault reset(0 -> 1)
+        controlWord &= servoOD::CW_MASK_STATE_CONTROL; // clear state control bits (0-3)
+        controlWord |= servoOD::CW_FAULT_RESET;        // bit 7: Fault reset(0 -> 1)
 
         // Update status
         {
@@ -550,20 +548,20 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
     // from Switch On Disabled to Ready to Switch On
     if ((statusWord & servoOD::SW_STATE_MASK1) == servoOD::SW_STATE_SWITCH_ON_DISABLED) {
         if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Switch On Disabled -> Shutdown";
-        controlWord = controlWord & bitF0 | servoOD::CW_SHUTDOWN;
+        controlWord = (controlWord & servoOD::CW_MASK_STATE_CONTROL) | servoOD::CW_SHUTDOWN;
 
         m_stateCheckCounter = stateCheckCycleCounter;
     }
     // from Ready to Switch On to Switched On
     else if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_READY_SWITCH_ON) {
         if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Ready to Switch On -> Switch On";
-        controlWord = controlWord & bitF0 | servoOD::CW_SWITCH_ON;
+        controlWord = (controlWord & servoOD::CW_MASK_STATE_CONTROL) | servoOD::CW_SWITCH_ON;
 
         m_stateCheckCounter = stateCheckCycleCounter;
     }
     // from Switched On to Operation Enabled
     else if ((statusWord & servoOD::SW_STATE_MASK2) == servoOD::SW_STATE_SWITCHED_ON) {
-        if ((controlWord & bit0F) == servoOD::CW_ENABLE_OP) {
+        if ((controlWord & servoOD::CW_MASK_COMMAND_BITS) == servoOD::CW_ENABLE_OP) {
             // Already tried to enable op. Drop to shutdown
             // controlWord = controlWord & bitF0 | cia402::CW_SHUTDOWN;
             controlWord = servoOD::CW_SHUTDOWN; // clear other bits
@@ -572,7 +570,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
         } else {
             // Enable operation
             if (stateChanged) qInfo() << "[ServoL7NH::stateCheck] Transition: Switched On -> Enable Operation";
-            controlWord = controlWord & bitF0 | servoOD::CW_ENABLE_OP;
+            controlWord = (controlWord & servoOD::CW_MASK_STATE_CONTROL) | servoOD::CW_ENABLE_OP;
         }
 
         // Longer delay before next check

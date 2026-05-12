@@ -16,6 +16,10 @@ constexpr uint16_t CW_SWITCH_ON   = 0x0007; // Command: Switched On
 constexpr uint16_t CW_ENABLE_OP   = 0x000F; // Command: Operation Enabled (Servo ON)
 constexpr uint16_t CW_FAULT_RESET = 0x0080; // Command: Fault Reset (Rising Edge)
 
+// Bitwise Masks for Control Word
+constexpr uint16_t CW_MASK_STATE_CONTROL = 0xFFF0; // Keep bits 4-15, clear bits 0-3
+constexpr uint16_t CW_MASK_COMMAND_BITS   = 0x000F; // Keep bits 0-3
+
 // --- [2] Status Word Masks & States (0x6041) ---
 constexpr uint16_t SW_STATE_MASK1 = 0x004F;
 constexpr uint16_t SW_STATE_MASK2 = 0x006F;
