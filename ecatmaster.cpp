@@ -336,7 +336,7 @@ void EcatMaster::processLoop()
 
         for (const auto& cmd : localCmds) {
             int slaveId = cmd.slaveId;
-            if (slaveId <= 0 || slaveId > m_Slaves.size())
+            if (slaveId <= 0 || slaveId >= m_Slaves.size())
                 continue;
             if (m_Slaves[slaveId] == nullptr)
                 continue;
@@ -347,7 +347,7 @@ void EcatMaster::processLoop()
         // 2. Process each slave PDO
         for (int i = 1; i <= ec_slavecount; ++i) {
             // Safety check: skip if slave instance creation failed
-            if (i > m_Slaves.size() || m_Slaves[i] == nullptr)
+            if (i >= m_Slaves.size() || m_Slaves[i] == nullptr)
                 continue;
 
             m_Slaves[i]->processData();
@@ -389,44 +389,32 @@ void EcatMaster::ecatCheck()
     int syncCounter = 0;
 
     while (m_Running) {
-        // If WKC is less than expected, or check state flag is set, check all
-        // slaves
-        int wkc = m_CurrentWKC.load();
-
-        // Force state check every 1 second (100 * 10ms) to ensure state
-        // synchronization
+        int  wkc        = m_CurrentWKC.load();
         bool forceCheck = (++syncCounter >= 100);
 
-        if (wkc < m_ExpectedWKC || ec_group[m_CurrentGroup].docheckstate || forceCheck) {
-            if (forceCheck)
-                syncCounter = 0;
+        if (forceCheck)
+            syncCounter = 0;
 
-            // std::lock_guard<std::mutex> lock(m_ecatMutex);
-
-            // // Clear check state flag
-            // ec_group[m_CurrentGroup].docheckstate = FALSE;
-            // // Read state of all slaves
-            // ec_readstate();
-
-            // Check each slave state
-            slavesCheck();
-
-            // If check state flag is cleared and it wasn't a force check, all slaves
-            // are resumed
-            if (!ec_group[m_CurrentGroup].docheckstate && !forceCheck) {
-                std::cout
-                    << "[EcatMaster::ecatCheck] OK : all slaves resumed OPERATIONAL"
-                    << std::endl;
-            }
-        }
+        // Perform thread-safe slave status check and recovery
+        slavesCheck(wkc, forceCheck);
 
         std::this_thread::sleep_for(std::chrono::microseconds(cycleTimeUs));
     }
 }
 
 // Check each slave state and try to recover if not in OP state
-void EcatMaster::slavesCheck()
+void EcatMaster::slavesCheck(int wkc, bool forceCheck)
 {
+    // 1. First quick check under lock to see if work is actually needed.
+    {
+        std::lock_guard<std::mutex> lock(m_ecatMutex);
+        if (!(wkc < m_ExpectedWKC || ec_group[m_CurrentGroup].docheckstate || forceCheck)) {
+            return;
+        }
+    }
+
+    // 2. If work is needed, re-acquire lock for the actual recovery process.
+    // The gap between step 1 and 2 allows the real-time processLoop to breathe.
     std::lock_guard<std::mutex> lock(m_ecatMutex);
 
     // Clear check state flag
@@ -531,12 +519,12 @@ void EcatMaster::slavesCheck()
                 std::cout << "[EcatMaster::slavesCheck] Slave " << i << " lost OPERATIONAL state" << std::endl;
             }
             m_lastSlaveStates[i] = slave.state;
-        } else if (slave.group == m_CurrentGroup && slave.state == EC_STATE_OPERATIONAL) {
-            if (m_lastSlaveStates[i] != EC_STATE_OPERATIONAL) {
-                std::cout << "[EcatMaster::slavesCheck] Slave " << i << " is back to OPERATIONAL" << std::endl;
-                m_lastSlaveStates[i] = EC_STATE_OPERATIONAL;
-            }
         }
+    }
+
+    // If check state flag is cleared and it wasn't a force check, all slaves are resumed
+    if (!ec_group[m_CurrentGroup].docheckstate && !forceCheck) {
+        qInfo() << "[EcatMaster::slavesCheck] OK : all slaves resumed OPERATIONAL";
     }
 }
 

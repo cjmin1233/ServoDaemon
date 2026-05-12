@@ -129,34 +129,22 @@ void EcatServer::onClientReadyread()
     QDataStream in(socket);
     in.setVersion(QDataStream::Qt_6_5);
 
-    // start transaction for safe reading
-    in.startTransaction();
+    // process data from client
+    while (socket->bytesAvailable() > sizeof(quint32)) {
+        in.startTransaction();
 
-    quint32 blockSize;
-    in >> blockSize;
+        quint32 blockSize;
+        in >> blockSize;
 
-    Command cmd;
-    in >> cmd;
+        Command cmd;
+        in >> cmd;
 
-    processCommand(socket, in, cmd);
-
-    // if (m_currentClient == nullptr) return;
-
-    // // read data from client
-    // QDataStream in(m_currentClient);
-    // in.setVersion(QDataStream::Qt_6_5);
-
-    // // start transaction for safe reading
-    // in.startTransaction();
-
-    // // TODO: read command structure
-    // quint32 blockSize;
-    // in >> blockSize;
-
-    // Command cmd;
-    // in >> cmd;
-
-    // processCommand(in, cmd);
+        if (in.commitTransaction()) {
+            processCommand(socket, cmd);
+        } else {
+            break;
+        }
+    }
 }
 
 void EcatServer::onClientDisconnected()
@@ -172,14 +160,14 @@ void EcatServer::onClientDisconnected()
 
     socket->deleteLater();
 
-    // Stop all servos
-    int totalSlaves = m_ecatManager->getSlaveCount();
-    for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
-        Command stopCmd;
-        stopCmd.slaveId = slaveId;
-        stopCmd.cmdType = CommandType::StopServo;
-        m_ecatManager->processCommand(stopCmd);
-    }
+    // // Stop all servos
+    // int totalSlaves = m_ecatManager->getSlaveCount();
+    // for (int slaveId = 1; slaveId <= totalSlaves; ++slaveId) {
+    //     Command stopCmd;
+    //     stopCmd.slaveId = slaveId;
+    //     stopCmd.cmdType = CommandType::StopServo;
+    //     m_ecatManager->processCommand(stopCmd);
+    // }
 }
 
 void EcatServer::onTimerTick()
@@ -264,13 +252,8 @@ void EcatServer::startTimer()
     }
 }
 
-void EcatServer::processCommand(QTcpSocket* socket, QDataStream& in,
-                                const Command& cmd)
+void EcatServer::processCommand(QTcpSocket* socket, const Command& cmd)
 {
-    if (!in.commitTransaction()) {
-        return;
-    }
-
     // If it's just a heartbeat, we are done (timestamp already updated in
     // onClientReadyread)
     if (cmd.cmdType == CommandType::Heartbeat) {

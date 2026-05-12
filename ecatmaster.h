@@ -48,7 +48,7 @@ private:
     bool reqOpState();
     void processLoop();
     void ecatCheck();
-    void slavesCheck();
+    void slavesCheck(int wkc, bool forceCheck);
     void monitorLoop();
 
     ServoL7NH*       getPtrServo(int slaveId);

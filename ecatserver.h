@@ -28,7 +28,7 @@ private slots:
 
 private:
     void startTimer();
-    void processCommand(QTcpSocket* socket, QDataStream& in, const Command& cmd);
+    void processCommand(QTcpSocket* socket, const Command& cmd);
 
 private:
     QTcpServer* m_server = nullptr;
