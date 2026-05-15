@@ -97,5 +97,10 @@ install(TARGETS ServoDaemon
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# 설정 파일이 들어있는 config 폴더를 빌드 출력 디렉터리로 복사 (실행 시 소스코드의 JSON 설정이 덮어써지도록)
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# 빌드 시마다 최신 설정 파일이 반영되도록 POST_BUILD 명령어로 복사 설정
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/config"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/config"
+    COMMENT "Copying updated config directory to build directory..."
+)
