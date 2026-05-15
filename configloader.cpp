@@ -68,6 +68,7 @@ static ServoConfig::ServoParams parseServoParams(const QJsonObject&             
     p.homingSpdSwitch = u32("homingSpdSwitch", defaults.homingSpdSwitch);
     p.homingSpdZero   = u32("homingSpdZero", defaults.homingSpdZero);
     p.homingAccel     = u32("homingAccel", defaults.homingAccel);
+    p.moveToZeroAfterHoming = u16("moveToZeroAfterHoming", defaults.moveToZeroAfterHoming);
 
     // --- [3] Profile Torque Mode ---
     p.torqueLimitFunc  = u16("torqueLimitFunc", defaults.torqueLimitFunc);
@@ -172,6 +173,7 @@ bool ConfigLoader::save(const QString& path)
         obj["homingSpdSwitch"] = static_cast<qint64>(p.homingSpdSwitch);
         obj["homingSpdZero"]   = static_cast<qint64>(p.homingSpdZero);
         obj["homingAccel"]     = static_cast<qint64>(p.homingAccel);
+        obj["moveToZeroAfterHoming"] = p.moveToZeroAfterHoming;
 
         obj["torqueLimitFunc"]  = p.torqueLimitFunc;
         obj["speedLimitFunc"]   = p.speedLimitFunc;

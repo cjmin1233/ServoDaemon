@@ -91,8 +91,9 @@ private:
 
     ServoStatus m_Status = {};
 
-    int32_t  m_posLimit   = 0;
-    uint32_t m_pulsePerMm = 0;
+    int32_t m_posLimit   = 0;
+    float   m_pulsePerMmf = 0.0f;
+    // uint32_t m_pulsePerMm = 0;
 
     // bool   m_wasWarning = false;
     // int8_t m_lastMode = 0;

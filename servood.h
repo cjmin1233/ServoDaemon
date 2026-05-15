@@ -97,6 +97,7 @@ constexpr uint16_t IDX_HOME_OFFSET   = 0x607C;
 constexpr uint16_t IDX_HOMING_METHOD = 0x6098;
 constexpr uint16_t IDX_HOMING_SPEED  = 0x6099;
 constexpr uint16_t IDX_HOMING_ACCEL  = 0x609A;
+constexpr uint16_t IDX_MOVE_TO_ZERO_AFTER_HOMING = 0x201E; // Vendor specific: 0: Disable, 1: Enable
 
 // Torque
 constexpr uint16_t IDX_TORQUE_LIMIT_FUNCTION = 0x2110; // unsigned 16 bit

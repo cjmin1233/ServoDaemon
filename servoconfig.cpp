@@ -26,6 +26,7 @@ ServoParams SlaveConfigs[slaveCountMax + 1] = {
         .homingSpdSwitch = ppr[1],      // 0x6099:01
         .homingSpdZero   = ppr[1] / 10, // 0x6099:02
         .homingAccel     = ppr[1] * 2,  // 0x609A
+        .moveToZeroAfterHoming = 0,     // 0x201E (Default: Disable)
 
         // --- [3] Profile Torque Mode (PT) ---
         .torqueLimitFunc  = 2,     // 0x2110
@@ -71,6 +72,7 @@ ServoParams SlaveConfigs[slaveCountMax + 1] = {
         .homingSpdSwitch = ppr[2],      // 0x6099:01
         .homingSpdZero   = ppr[2] / 10, // 0x6099:02
         .homingAccel     = ppr[2] * 2,  // 0x609A
+        .moveToZeroAfterHoming = 0,     // 0x201E (Default: Disable)
 
         // --- [3] Profile Torque Mode (PT) ---
         .torqueLimitFunc  = 2,     // 0x2110
