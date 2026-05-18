@@ -502,13 +502,13 @@ void ServoL7NH::processCommand(const Command& cmd)
         setTargetPosition(cmd.value);
         break;
     case CommandType::SetHome:
-        // 절대치가 이미 유효하다면 Homing 건너뛰고 즉시 PP 모드로 전환
-        if (statusWord & servoOD::SW_BIT_ABS_VALID) {
-            qInfo() << "[ServoL7NH::processCommand] Slave" << m_slaveId
-                    << ": Absolute position already valid. Skipping homing.";
-            setTargetPosition(0);
-            return;
-        }
+        // // 절대치가 이미 유효하다면 Homing 건너뛰고 즉시 PP 모드로 전환
+        // if (statusWord & servoOD::SW_BIT_ABS_VALID) {
+        //     qInfo() << "[ServoL7NH::processCommand] Slave" << m_slaveId
+        //             << ": Absolute position already valid. Skipping homing.";
+        //     setTargetPosition(0);
+        //     return;
+        // }
         setHome();
         break;
     case CommandType::SetTorque:

@@ -18,7 +18,7 @@ constexpr uint16_t CW_FAULT_RESET = 0x0080; // Command: Fault Reset (Rising Edge
 
 // Bitwise Masks for Control Word
 constexpr uint16_t CW_MASK_STATE_CONTROL = 0xFFF0; // Keep bits 4-15, clear bits 0-3
-constexpr uint16_t CW_MASK_COMMAND_BITS   = 0x000F; // Keep bits 0-3
+constexpr uint16_t CW_MASK_COMMAND_BITS  = 0x000F; // Keep bits 0-3
 
 // --- [2] Status Word Masks & States (0x6041) ---
 constexpr uint16_t SW_STATE_MASK1 = 0x004F;
@@ -93,10 +93,10 @@ constexpr uint16_t IDX_DISABLE_OPTION    = 0x605C;
 constexpr uint16_t IDX_HALT_OPTION       = 0x605D;
 
 // Homing
-constexpr uint16_t IDX_HOME_OFFSET   = 0x607C;
-constexpr uint16_t IDX_HOMING_METHOD = 0x6098;
-constexpr uint16_t IDX_HOMING_SPEED  = 0x6099;
-constexpr uint16_t IDX_HOMING_ACCEL  = 0x609A;
+constexpr uint16_t IDX_HOME_OFFSET               = 0x607C;
+constexpr uint16_t IDX_HOMING_METHOD             = 0x6098;
+constexpr uint16_t IDX_HOMING_SPEED              = 0x6099;
+constexpr uint16_t IDX_HOMING_ACCEL              = 0x609A;
 constexpr uint16_t IDX_MOVE_TO_ZERO_AFTER_HOMING = 0x201E; // Vendor specific: 0: Disable, 1: Enable
 
 // Torque
