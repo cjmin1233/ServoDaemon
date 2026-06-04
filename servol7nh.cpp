@@ -679,6 +679,9 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
         m_flagNewSetpoint = false;
     }
 
+    std::lock_guard<std::mutex> lock(m_statusMutex);
+    m_Status.hasArrived = statusWord & servoOD::SW_BIT_TARGET_REACHED;
+
     // if (isInPosition(rxpdo, txpdo) && !m_isSettling) {
     //     qInfo() << "[ServoL7NH::processPP] Target reached. Start settling
     //     check...";
@@ -891,6 +894,8 @@ const bool ServoL7NH::isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const
 
     const int32_t  posDiff = targetPos - actualPos;
     const uint32_t absDiff = posDiff < 0 ? -posDiff : posDiff;
+
+    qDebug() << "[ServoL7NH::isInPosition] pos diff:" << absDiff << ", pos window:" << m_posWindow;
 
     // Check if within the position window
     return absDiff <= m_posWindow;
