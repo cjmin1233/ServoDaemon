@@ -33,8 +33,9 @@ public:
 
     ErrorReason processCommand(const Command& cmd);
 
-    ServoStatus getServoStatus(int slaveId) const;
-    const bool  isRunning() const { return m_Running; }
+    ServoStatus   getServoStatus(int slaveId) const;
+    const int32_t getServoStrokeMm(int slaveId) const;
+    const bool    isRunning() const { return m_Running; }
     // const bool  isServoRunning() const;
 
     // const bool isThreadTerminated() const
@@ -74,8 +75,8 @@ private:
     std::vector<std::unique_ptr<Slave>> m_Slaves = {};
     std::vector<uint16_t>               m_lastSlaveStates;
 
-    mutable std::mutex m_ecatMutex;
-    std::mutex         m_cmdMutex;
+    mutable std::mutex   m_ecatMutex;
+    std::mutex           m_cmdMutex;
     std::vector<Command> m_cmdQueue;
 };
 

@@ -14,6 +14,7 @@ public:
 
     const int   getSlaveCount() const { return ec_slavecount; }
     ServoStatus getServoStatus(int slaveId) const { return m_Master.getServoStatus(slaveId); }
+    const int   getServoStrokeMm(int slaveId) const { return m_Master.getServoStrokeMm(slaveId); }
     const bool  isMasterRunning() const { return m_Master.isRunning(); }
 
     bool connectMaster();

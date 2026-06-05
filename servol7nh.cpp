@@ -361,6 +361,7 @@ void ServoL7NH::start()
     // calculate pulse per mm, limit
     m_pulsePerMmf = calcPulsePerMmf(m_slaveId);
     m_posLimit    = calcPosLimit(m_slaveId);
+    m_strokeMm  = cfg.strokeMm;
 
     // // start command: homing mode
     // setHome();

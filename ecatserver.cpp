@@ -114,6 +114,33 @@ void EcatServer::onServerConnection()
                          &EcatServer::onClientDisconnected);
 
         qInfo() << "[EcatServer::onServerConnection] New client connected.";
+
+        SystemInitData initData;
+        initData.totalServos = m_ecatManager->getSlaveCount();
+
+        for (quint16 i = 1; i <= initData.totalServos; ++i) {
+            ServoInitData servoData;
+            servoData.slaveId = i;
+
+            servoData.minPosition = 0;
+            servoData.maxPosition = m_ecatManager->getServoStrokeMm(i);
+
+            initData.servos.append(servoData);
+        }
+
+        QByteArray  block;
+        QDataStream out(&block, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_6_5);
+
+        out << (quint32)0;
+        out << (quint32)MessageType::SystemInitData;
+        out << initData;
+
+        out.device()->seek(0);
+        out << (quint32)(block.size() - sizeof(quint32));
+
+        m_client->write(block);
+        m_client->flush();
     }
 }
 

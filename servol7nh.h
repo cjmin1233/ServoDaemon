@@ -59,6 +59,9 @@ public:
     void setHome();
     // void setTorque(int16_t torque);
 
+    const int32_t getPosLimit() const { return m_posLimit; }
+    const int32_t getStrokeMm() const { return m_strokeMm; }
+
     ServoStatus getStatus() const;
     const bool  isRunning() const;
 
@@ -92,6 +95,7 @@ private:
     ServoStatus m_Status = {};
 
     int32_t m_posLimit    = 0;
+    int32_t m_strokeMm    = 0;
     float   m_pulsePerMmf = 0.0f;
     // uint32_t m_pulsePerMm = 0;
 

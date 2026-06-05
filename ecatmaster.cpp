@@ -264,6 +264,20 @@ ServoStatus EcatMaster::getServoStatus(int slaveId) const
     return empty;
 }
 
+const int32_t EcatMaster::getServoStrokeMm(int slaveId) const
+{
+    if (slaveId <= 0 || slaveId > ec_slavecount) {
+        return 0;
+    }
+
+    ServoL7NH* servo = dynamic_cast<ServoL7NH*>(m_Slaves[slaveId].get());
+    if (servo == nullptr) {
+        return 0;
+    }
+
+    return servo->getStrokeMm();
+}
+
 // Check if the adapter is valid by attempting to initialize and count slaves
 bool EcatMaster::isAdapterValid(const std::string& ifname)
 {
