@@ -6,9 +6,11 @@
 
 EcatManager::EcatManager(QObject* parent)
     : QObject { parent }
-    , m_Master()
+    , m_Master(new EcatMaster(this))
     , m_ifname()
 {
+    connect(m_Master, &EcatMaster::allServosArrived,
+            this, &EcatManager::onAllServosArrived);
 }
 
 EcatManager::~EcatManager()
@@ -23,7 +25,7 @@ bool EcatManager::connectMaster()
         return false;
     }
 
-    if (m_Master.isRunning()) {
+    if (m_Master->isRunning()) {
         qDebug() << "[EcatManager::connectMaster] Master is running...";
         return true;
     }
@@ -31,7 +33,7 @@ bool EcatManager::connectMaster()
     m_isConnecting = true;
 
     // try to connect with previous ifname first
-    if (!m_ifname.isEmpty() && m_Master.isAdapterValid(m_ifname.toStdString())) {
+    if (!m_ifname.isEmpty() && m_Master->isAdapterValid(m_ifname.toStdString())) {
         bool ok        = connectMaster(m_ifname);
         m_isConnecting = false;
         return ok;
@@ -55,13 +57,13 @@ bool EcatManager::connectMaster()
 bool EcatManager::connectMaster(const QString& ifname)
 {
     // init to op state. return false if failed
-    if (!m_Master.init(ifname.toStdString())) {
+    if (!m_Master->init(ifname.toStdString())) {
         qWarning() << "[EcatManager::connectMaster] EtherCAT init failed";
         return false;
     }
 
     // start process loop and error handler threads. return false if failed
-    if (!m_Master.start()) {
+    if (!m_Master->start()) {
         qWarning() << "[EcatManager::connectMaster] EtherCAT start failed";
         return false;
     }
@@ -84,7 +86,7 @@ void EcatManager::reconnectMaster()
 
     // stop to terminate threads, reset init state
     // We don't call disconnectMaster() here because it resets m_isConnecting
-    m_Master.stop();
+    m_Master->stop();
 
     // wait for a moment to allow hardware/drivers to settle without blocking the event loop
     QTimer::singleShot(100, this, [this]() {
@@ -108,7 +110,7 @@ void EcatManager::disconnectMaster()
     m_isConnecting = false;
 
     // stop to terminate threads, reset init state
-    m_Master.stop();
+    m_Master->stop();
 }
 
 // search for a valid EtherCAT adapter and update m_ifname
@@ -125,7 +127,7 @@ void EcatManager::searchValidAdapter()
     while (current != nullptr) {
         // qDebug() << "[EcatManager::searchValidAdapter] Found adapter:" << current->name << ", checking validity...";
 
-        if (m_Master.isAdapterValid(current->name)) {
+        if (m_Master->isAdapterValid(current->name)) {
             m_ifname = current->name;
             qInfo() << "[EcatManager::searchValidAdapter] Found valid adapter, updated ifname to:" << m_ifname;
 

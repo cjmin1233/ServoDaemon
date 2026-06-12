@@ -1,6 +1,8 @@
 #ifndef ECATMASTER_H
 #define ECATMASTER_H
 
+#include <QObject>
+
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -17,9 +19,10 @@ extern "C" {
 
 class ServoL7NH;
 
-class EcatMaster {
+class EcatMaster : public QObject {
+    Q_OBJECT
 public:
-    EcatMaster() = default;
+    explicit EcatMaster(QObject* parent = nullptr);
     ~EcatMaster()
     {
         if (m_Running) {
@@ -45,6 +48,9 @@ public:
 
     bool isAdapterValid(const std::string& ifname);
 
+signals:
+    void allServosArrived();
+
 private:
     bool reqOpState();
     void processLoop();
@@ -54,6 +60,9 @@ private:
 
     ServoL7NH*       getPtrServo(int slaveId);
     const ServoL7NH* getPtrServo(int slaveId) const;
+
+private slots:
+    void onServoArrived(uint16_t slaveId);
 
 private:
     std::atomic<bool> m_Running { false };
@@ -78,6 +87,8 @@ private:
     mutable std::mutex   m_ecatMutex;
     std::mutex           m_cmdMutex;
     std::vector<Command> m_cmdQueue;
+
+    std::vector<bool> m_servosArrived = {};
 };
 
 #endif // ECATMASTER_H

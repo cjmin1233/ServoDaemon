@@ -56,6 +56,11 @@ static void ec_sync(int64_t reftime, int64_t cycletime, int64_t* offsettime)
 }
 
 // Initialize EtherCAT master, return true if initialized successfully
+EcatMaster::EcatMaster(QObject* parent)
+    : QObject { parent }
+{
+}
+
 bool EcatMaster::init(const std::string& ifname)
 {
     // Small delay to allow hardware/drivers to settle (especially on power-on
@@ -95,6 +100,8 @@ bool EcatMaster::init(const std::string& ifname)
         m_Slaves.resize(ec_slavecount + 1);
         m_lastSlaveStates.assign(ec_slavecount + 1, 0);
 
+        m_servosArrived.resize(ec_slavecount);
+
         for (int i = 1; i <= ec_slavecount; ++i) {
             auto& slave = ec_slave[i];
 
@@ -104,7 +111,12 @@ bool EcatMaster::init(const std::string& ifname)
                 slave.PO2SOconfig = &ServoL7NH::setup;
 
                 // Create slave instance
-                m_Slaves[i] = std::make_unique<ServoL7NH>(i);
+                auto servo = std::make_unique<ServoL7NH>(i);
+
+                connect(servo.get(), &ServoL7NH::arrived,
+                        this, &EcatMaster::onServoArrived);
+
+                m_Slaves[i] = std::move(servo);
             } else {
                 m_Slaves[i] = nullptr;
             }
@@ -578,4 +590,25 @@ const ServoL7NH* EcatMaster::getPtrServo(int slaveId) const
     }
 
     return dynamic_cast<const ServoL7NH*>(m_Slaves[slaveId].get());
+}
+
+void EcatMaster::onServoArrived(uint16_t slaveId)
+{
+    m_servosArrived[slaveId - 1] = true;
+
+    qDebug() << "[EcatMaster::onServoArrived] servo" << slaveId << " arrived.";
+
+    bool allArrived = true;
+    for (bool arrived : m_servosArrived) {
+        if (!arrived) {
+            allArrived = false;
+            break;
+        }
+    }
+
+    if (allArrived) {
+        std::fill(m_servosArrived.begin(), m_servosArrived.end(), false);
+
+        emit allServosArrived();
+    }
 }

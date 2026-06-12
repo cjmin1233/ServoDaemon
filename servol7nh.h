@@ -9,6 +9,7 @@
 bool checkL7NH(int slaveId);
 
 class ServoL7NH : public Slave {
+    Q_OBJECT
 public:
 #pragma pack(push, 1) // 메모리 패딩 방지 (중요!)
 
@@ -36,7 +37,7 @@ public:
 #pragma pack(pop)
 
 public:
-    ServoL7NH(uint16_t slaveId)
+    explicit ServoL7NH(uint16_t slaveId)
         : Slave(slaveId)
     {
     }
@@ -65,6 +66,9 @@ public:
     ServoStatus getStatus() const;
     const bool  isRunning() const;
 
+signals:
+    void arrived(uint16_t slaveId);
+
 private:
     void stateCheck(RxPDO* rxpdo, const TxPDO* txpdo);
     void processPP(RxPDO* rxpdo, const TxPDO* txpdo);
@@ -73,14 +77,10 @@ private:
 
     // void settling(RxPDO* rxpdo, const TxPDO* txpdo);
 
-    // const bool isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const;
-
     RxPDO*       ptrRxPDO() { return reinterpret_cast<RxPDO*>(ec_slave[m_slaveId].outputs); }
     const TxPDO* ptrTxPDO() const { return reinterpret_cast<const TxPDO*>(ec_slave[m_slaveId].inputs); }
 
 private:
-    // static constexpr uint32_t s_encoderResolution = 262'144;
-
     bool m_flagNewSetpoint = false;
     bool m_flagHomingStart = false;
 
@@ -106,6 +106,8 @@ private:
     uint16_t             m_lastStatusWord = 0;
     bool                 m_lastPdoValid   = true;
     servoOD::HomingState m_lastHMState    = static_cast<servoOD::HomingState>(0);
+
+    bool m_lastTargetReached = false;
 
     mutable std::mutex m_statusMutex;
 };

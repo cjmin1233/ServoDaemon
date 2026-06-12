@@ -1,16 +1,20 @@
 #ifndef SLAVE_H
 #define SLAVE_H
 
+#include <QObject>
+
 extern "C" {
 #include "ethercat.h"
 }
 
 #include "../CommonConfig.h"
 
-class Slave {
+class Slave : public QObject {
+    Q_OBJECT
 public:
-    Slave(uint16_t slaveId)
-        : m_slaveId(slaveId)
+    explicit Slave(uint16_t slaveId, QObject* parent = nullptr)
+        : QObject { parent }
+        , m_slaveId(slaveId)
     {
     }
     virtual ~Slave() = default;

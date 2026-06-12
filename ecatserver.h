@@ -26,6 +26,8 @@ private slots:
     void onClientDisconnected();
     void onTimerTick();
 
+    void onAllServosArrived();
+
 private:
     void startTimer();
     void processCommand(QTcpSocket* socket, const Command& cmd);
@@ -38,7 +40,7 @@ private:
 
     EcatManager* m_ecatManager = nullptr;
 
-    const int m_tickCycleMs = 1000;
+    const int m_tickCycleMs = 500;
 
     qint64    m_lastPacketTime         = 0;
     const int m_watchdogTimeoutMs      = 5000;

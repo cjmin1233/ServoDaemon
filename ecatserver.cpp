@@ -19,6 +19,9 @@ EcatServer::EcatServer(QObject* parent)
     QObject::connect(m_server, &QTcpServer::newConnection, this,
                      &EcatServer::onServerConnection);
     QObject::connect(m_timer, &QTimer::timeout, this, &EcatServer::onTimerTick);
+
+    QObject::connect(m_ecatManager, &EcatManager::allServosArrived,
+                     this, &EcatServer::onAllServosArrived);
 }
 
 EcatServer::~EcatServer()
@@ -268,6 +271,24 @@ void EcatServer::onTimerTick()
 
         m_client->write(block);
     }
+}
+
+void EcatServer::onAllServosArrived()
+{
+    if (!m_client || m_client->state() != QAbstractSocket::ConnectedState)
+        return;
+
+    QByteArray  block;
+    QDataStream out(&block, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_6_5);
+
+    out << (quint32)0;
+    out << (quint32)MessageType::ServoArriveAlarm;
+
+    out.device()->seek(0);
+    out << (quint32)(block.size() - sizeof(quint32));
+
+    m_client->write(block);
 }
 
 void EcatServer::startTimer()

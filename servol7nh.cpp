@@ -361,7 +361,7 @@ void ServoL7NH::start()
     // calculate pulse per mm, limit
     m_pulsePerMmf = calcPulsePerMmf(m_slaveId);
     m_posLimit    = calcPosLimit(m_slaveId);
-    m_strokeMm  = cfg.strokeMm;
+    m_strokeMm    = cfg.strokeMm;
 
     // // start command: homing mode
     // setHome();
@@ -430,6 +430,7 @@ void ServoL7NH::setTargetPosition(int32_t pos)
     rxpdo->control_word &= ~(servoOD::CW_BIT_NEW_SETPOINT); // Clear new setpoint bit
 
     m_flagNewSetpoint = true;
+    // m_lastTargetReached = false;
     // m_isSettling      = false;
 }
 
@@ -672,32 +673,31 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
         if (isSetpointAck) {
             // new setpoint requested and acknowledged
             controlWord &= ~(servoOD::CW_BIT_NEW_SETPOINT);
+            // m_lastTargetReached  = false;
         }
+
+        m_lastTargetReached = false;
     } else if (m_flagNewSetpoint) {
         // request new setpoint
         controlWord |= servoOD::CW_BIT_NEW_SETPOINT;
         // flag off
         m_flagNewSetpoint = false;
+
+        m_lastTargetReached = false;
     }
 
     std::lock_guard<std::mutex> lock(m_statusMutex);
-    m_Status.hasArrived = statusWord & servoOD::SW_BIT_TARGET_REACHED;
 
-    // if (isInPosition(rxpdo, txpdo) && !m_isSettling) {
-    //     qInfo() << "[ServoL7NH::processPP] Target reached. Start settling
-    //     check...";
+    bool hasTargetReached = statusWord & servoOD::SW_BIT_TARGET_REACHED;
 
-    //     m_isSettling            = true;
-    //     m_settlingTimeout       = SETTLING_TIMEOUT;
-    //     m_settlingStableCounter = 0;
+    bool isHandshakeInProgress = isNewSetpointRequested || isSetpointAck;
+    bool validArrival          = hasTargetReached && !isHandshakeInProgress;
 
-    //     return;
-    // }
+    if (!m_lastTargetReached && validArrival) {
+        emit arrived(m_slaveId);
 
-    // // Settling phase logic
-    // if (m_isSettling) {
-    //     settling(rxpdo, txpdo);
-    // }
+        m_lastTargetReached = true;
+    }
 }
 
 /*
@@ -886,19 +886,5 @@ stable)";
         controlWord  &= ~(servoOD::CW_BIT_NEW_SETPOINT);
         m_isSettling  = false;
     }
-}
-
-const bool ServoL7NH::isInPosition(RxPDO* rxpdo, const TxPDO* txpdo) const
-{
-    const int32_t targetPos = rxpdo->target_position;
-    const int32_t actualPos = txpdo->actual_position;
-
-    const int32_t  posDiff = targetPos - actualPos;
-    const uint32_t absDiff = posDiff < 0 ? -posDiff : posDiff;
-
-    qDebug() << "[ServoL7NH::isInPosition] pos diff:" << absDiff << ", pos window:" << m_posWindow;
-
-    // Check if within the position window
-    return absDiff <= m_posWindow;
 }
 */
