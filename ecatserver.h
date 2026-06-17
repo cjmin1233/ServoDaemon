@@ -27,6 +27,7 @@ private slots:
     void onTimerTick();
 
     void onAllServosArrived();
+    // void onArrived(const QVector<int>& point);
 
 private:
     void startTimer();

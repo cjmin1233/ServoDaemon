@@ -2,6 +2,7 @@
 #define ECATMASTER_H
 
 #include <QObject>
+// #include <QVector>
 
 #include <atomic>
 #include <memory>
@@ -48,8 +49,11 @@ public:
 
     bool isAdapterValid(const std::string& ifname);
 
+    // void setTargetPoint(const QVector<int>& point);
+
 signals:
     void allServosArrived();
+    // void _Arrived(const QVector<int>& point);
 
 private:
     bool reqOpState();
@@ -89,6 +93,9 @@ private:
     std::vector<Command> m_cmdQueue;
 
     std::vector<bool> m_servosArrived = {};
+
+    // QVector<int> m_targetPoint = {};
+    // QVector<int> m_curPoint    = {};
 };
 
 #endif // ECATMASTER_H

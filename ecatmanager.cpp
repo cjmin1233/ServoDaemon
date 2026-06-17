@@ -11,6 +11,8 @@ EcatManager::EcatManager(QObject* parent)
 {
     connect(m_Master, &EcatMaster::allServosArrived,
             this, &EcatManager::onAllServosArrived);
+    // connect(m_Master, &EcatMaster::_Arrived,
+    //         this, &EcatManager::onArrived);
 }
 
 EcatManager::~EcatManager()

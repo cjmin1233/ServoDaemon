@@ -102,6 +102,9 @@ bool EcatMaster::init(const std::string& ifname)
 
         m_servosArrived.resize(ec_slavecount);
 
+        // m_targetPoint.resize(ec_slavecount);
+        // m_curPoint.resize(ec_slavecount);
+
         for (int i = 1; i <= ec_slavecount; ++i) {
             auto& slave = ec_slave[i];
 
@@ -254,6 +257,7 @@ ErrorReason EcatMaster::processCommand(const Command& cmd)
     // Command validation passed, enqueue for the process loop
     {
         std::lock_guard<std::mutex> lock(m_cmdMutex);
+
         m_cmdQueue.push_back(cmd);
     }
 
@@ -306,6 +310,13 @@ bool EcatMaster::isAdapterValid(const std::string& ifname)
 
     return (slaveCount == ServoConfig::slaveCountMax);
 }
+
+// void EcatMaster::setTargetPoint(const QVector<int>& point)
+// {
+//     for (int i = 0; i < m_targetPoint.size() && i < point.size(); ++i) {
+//         m_targetPoint[i] = point[i];
+//     }
+// }
 
 // Request Operational state for all slaves
 bool EcatMaster::reqOpState()
@@ -362,6 +373,7 @@ void EcatMaster::processLoop()
 
         for (const auto& cmd : localCmds) {
             int slaveId = cmd.slaveId;
+
             if (slaveId > 0 && slaveId < (int)m_Slaves.size() && m_Slaves[slaveId]) {
                 m_Slaves[slaveId]->processCommand(cmd);
             }
@@ -545,7 +557,7 @@ void EcatMaster::slavesCheck(int wkc, bool forceCheck)
 
     // If check state flag is cleared and it wasn't a force check, all slaves are resumed
     if (!ec_group[m_CurrentGroup].docheckstate && !forceCheck) {
-        qInfo() << "[EcatMaster::slavesCheck] OK : all slaves resumed OPERATIONAL";
+        // qInfo() << "[EcatMaster::slavesCheck] OK : all slaves resumed OPERATIONAL";
     }
 }
 
@@ -594,7 +606,13 @@ const ServoL7NH* EcatMaster::getPtrServo(int slaveId) const
 
 void EcatMaster::onServoArrived(uint16_t slaveId)
 {
+    if (m_servosArrived[slaveId - 1]) {
+        // already arrived
+        return;
+    }
+
     m_servosArrived[slaveId - 1] = true;
+    // m_curPoint[slaveId - 1]      = m_targetPoint[slaveId - 1];
 
     qDebug() << "[EcatMaster::onServoArrived] servo" << slaveId << " arrived.";
 
@@ -606,9 +624,22 @@ void EcatMaster::onServoArrived(uint16_t slaveId)
         }
     }
 
+    // for (int i = 0; i < m_targetPoint.size(); ++i) {
+    //     if (m_targetPoint[i] != m_curPoint[i]) {
+    //         allArrived = false;
+    //         break;
+    //     }
+    // }
+
     if (allArrived) {
         std::fill(m_servosArrived.begin(), m_servosArrived.end(), false);
 
+        // qDebug() << "Target point:";
+        // for (auto p : m_targetPoint) {
+        //     qDebug() << p;
+        // }
+
         emit allServosArrived();
+        // emit _Arrived(m_curPoint);
     }
 }

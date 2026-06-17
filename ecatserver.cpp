@@ -22,6 +22,8 @@ EcatServer::EcatServer(QObject* parent)
 
     QObject::connect(m_ecatManager, &EcatManager::allServosArrived,
                      this, &EcatServer::onAllServosArrived);
+    // QObject::connect(m_ecatManager, &EcatManager::_Arrived,
+    //                  this, &EcatServer::onArrived);
 }
 
 EcatServer::~EcatServer()
@@ -169,7 +171,25 @@ void EcatServer::onClientReadyread()
         Command cmd;
         in >> cmd;
 
-        if (in.commitTransaction()) {
+        if (cmd.cmdType == CommandType::MovePoint) {
+            int slaveCount = m_ecatManager->getSlaveCount();
+            // QVector<int> point(slaveCount);
+
+            for (int i = 0; i < slaveCount; ++i) {
+                int p;
+                in >> p;
+
+                // point[i] = p;
+
+                processCommand(socket, { (quint16)(i + 1), CommandType::MovePosition, p });
+            }
+
+            // m_ecatManager->setTargetPoint(point);
+
+            if (!in.commitTransaction()) {
+                break;
+            }
+        } else if (in.commitTransaction()) {
             processCommand(socket, cmd);
         } else {
             break;
@@ -289,7 +309,31 @@ void EcatServer::onAllServosArrived()
     out << (quint32)(block.size() - sizeof(quint32));
 
     m_client->write(block);
+    m_client->flush();
 }
+
+// void EcatServer::onArrived(const QVector<int>& point)
+// {
+//     if (!m_client || m_client->state() != QAbstractSocket::ConnectedState)
+//         return;
+
+//     QByteArray  block;
+//     QDataStream out(&block, QIODevice::WriteOnly);
+//     out.setVersion(QDataStream::Qt_6_5);
+
+//     out << (quint32)0;
+//     out << (quint32)MessageType::ServoArriveAlarm;
+
+//     for (int i = 0; i < point.size(); ++i) {
+//         out << point[i];
+//     }
+
+//     out.device()->seek(0);
+//     out << (quint32)(block.size() - sizeof(quint32));
+
+//     m_client->write(block);
+//     m_client->flush();
+// }
 
 void EcatServer::startTimer()
 {

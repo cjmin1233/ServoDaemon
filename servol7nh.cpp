@@ -7,9 +7,9 @@
 #include "servoconfig.h"
 #include "servol7nh.h"
 
-// settling constants
-static constexpr int SETTLING_TIMEOUT      = 5000;
-static constexpr int SETTLING_STABLE_COUNT = 50;
+// // settling constants
+// static constexpr int SETTLING_TIMEOUT      = 5000;
+// static constexpr int SETTLING_STABLE_COUNT = 50;
 
 // --- utility functions ---
 /**
@@ -62,17 +62,19 @@ float calcPulsePerMmf(int slaveId)
     return cfg.encoderPPR / (gearRatio * cfg.leadMm);
 }
 
-// uint32_t calcPulsePerMm(int slaveId)
-// {
-//     // const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
+/*
+uint32_t calcPulsePerMm(int slaveId)
+{
+    // const auto& cfg = ServoConfig::SlaveConfigs[slaveId];
 
-//     // // calculate pulse per mm
-//     // uint32_t gearRatio = cfg.motorRevolutions / cfg.shaftRevolutions;
+    // // calculate pulse per mm
+    // uint32_t gearRatio = cfg.motorRevolutions / cfg.shaftRevolutions;
 
-//     // return cfg.encoderPPR / (gearRatio * cfg.leadMm);
+    // return cfg.encoderPPR / (gearRatio * cfg.leadMm);
 
-//     return (uint32_t)calcPulsePerMmf(slaveId);
-// }
+    return (uint32_t)calcPulsePerMmf(slaveId);
+}
+*/
 
 int32_t calcPosLimit(int slaveId)
 {
@@ -82,6 +84,7 @@ int32_t calcPosLimit(int slaveId)
 }
 // -------------------------
 
+// --- setup functions ---
 bool ServoL7NH::checkL7NH(int slaveId)
 {
     static constexpr uint32 manufacturer = 0x00007595;
@@ -294,6 +297,7 @@ bool ServoL7NH::setupTorque(uint16 slaveId)
 
     return ok;
 }
+// -------------------------
 
 void ServoL7NH::processData()
 {
@@ -342,7 +346,7 @@ void ServoL7NH::processData()
         }
 
         // update status
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_Status.position = txpdo->actual_position;
         m_Status.velocity = txpdo->actual_velocity;
     }
@@ -362,14 +366,11 @@ void ServoL7NH::start()
     m_pulsePerMmf = calcPulsePerMmf(m_slaveId);
     m_posLimit    = calcPosLimit(m_slaveId);
     m_strokeMm    = cfg.strokeMm;
-
-    // // start command: homing mode
-    // setHome();
 }
 
 ServoStatus ServoL7NH::getStatus() const
 {
-    std::lock_guard<std::mutex> lock(m_statusMutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_Status;
 }
 
@@ -504,13 +505,6 @@ void ServoL7NH::processCommand(const Command& cmd)
         setTargetPosition(cmd.value);
         break;
     case CommandType::SetHome:
-        // // 절대치가 이미 유효하다면 Homing 건너뛰고 즉시 PP 모드로 전환
-        // if (statusWord & servoOD::SW_BIT_ABS_VALID) {
-        //     qInfo() << "[ServoL7NH::processCommand] Slave" << m_slaveId
-        //             << ": Absolute position already valid. Skipping homing.";
-        //     setTargetPosition(0);
-        //     return;
-        // }
         setHome();
         break;
     case CommandType::SetTorque:
@@ -584,7 +578,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
         // Update status
         {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_Status.hasError  = true;
             m_Status.errorCode = txpdo->error_code;
         }
@@ -601,7 +595,7 @@ void ServoL7NH::stateCheck(RxPDO* rxpdo, const TxPDO* txpdo)
 
         // Update status
         {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_Status.hasError  = false;
             m_Status.errorCode = 0;
         }
@@ -658,6 +652,9 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
 {
     // Profile position mode
     static constexpr int8_t MODE_PP = static_cast<int8_t>(servoOD::Mode::PP);
+
+    static constexpr int STABLE_COUNT = 4;
+
     // operated mode should be already set to PP
     if (rxpdo->mode != MODE_PP) {
         return;
@@ -668,6 +665,8 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
 
     const bool isNewSetpointRequested = controlWord & servoOD::CW_BIT_NEW_SETPOINT;
     const bool isSetpointAck          = statusWord & servoOD::SW_BIT_SET_POINT_ACK;
+
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     if (isNewSetpointRequested) {
         if (isSetpointAck) {
@@ -684,19 +683,23 @@ void ServoL7NH::processPP(RxPDO* rxpdo, const TxPDO* txpdo)
         m_flagNewSetpoint = false;
 
         m_lastTargetReached = false;
+        m_arrivalCount      = 0;
     }
-
-    std::lock_guard<std::mutex> lock(m_statusMutex);
 
     bool hasTargetReached = statusWord & servoOD::SW_BIT_TARGET_REACHED;
 
     bool isHandshakeInProgress = isNewSetpointRequested || isSetpointAck;
     bool validArrival          = hasTargetReached && !isHandshakeInProgress;
 
-    if (!m_lastTargetReached && validArrival) {
+    if (!m_lastTargetReached && validArrival && txpdo->actual_velocity == 0) {
+        ++m_arrivalCount;
+    }
+
+    if (m_arrivalCount >= STABLE_COUNT) {
         emit arrived(m_slaveId);
 
         m_lastTargetReached = true;
+        m_arrivalCount      = 0;
     }
 }
 
@@ -830,26 +833,6 @@ void ServoL7NH::processHM(RxPDO* rxpdo, const TxPDO* txpdo)
         break;
     }
 }
-
-// // Homing processing...
-// if (isHomingStart) {
-//     // Homing Attained, enter settling phase
-//     if (isHomingAttained && !m_isSettling) {
-//         qInfo() << "[ServoL7NH::processHM] Homing attained. Start settling
-//         check...";
-
-//         m_isSettling            = true;
-//         m_settlingTimeout       = SETTLING_TIMEOUT;
-//         m_settlingStableCounter = 0;
-
-//         return;
-//     }
-
-//     // Settling phase logic
-//     if (m_isSettling) {
-//         settling(rxpdo, txpdo);
-//     }
-// }
 
 /*
 void ServoL7NH::settling(RxPDO* rxpdo, const TxPDO* txpdo)

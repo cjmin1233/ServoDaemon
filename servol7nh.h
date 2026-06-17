@@ -108,8 +108,9 @@ private:
     servoOD::HomingState m_lastHMState    = static_cast<servoOD::HomingState>(0);
 
     bool m_lastTargetReached = false;
+    int  m_arrivalCount      = 0;
 
-    mutable std::mutex m_statusMutex;
+    mutable std::mutex m_mutex;
 };
 
 #endif // SERVOL7NH_H
