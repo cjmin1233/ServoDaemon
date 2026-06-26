@@ -31,7 +31,7 @@ bool WindowsService::install()
 
     QString appPath = QCoreApplication::applicationFilePath();
     appPath.replace("/", "\\");
-    appPath = "\"" + appPath + "\"";
+    appPath = "\"" + appPath + "\" --service \"" + m_serviceName + "\"";
 
     const std::wstring wideName = m_serviceName.toStdWString();
 

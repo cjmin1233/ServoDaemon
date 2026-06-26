@@ -19,28 +19,40 @@ int main(int argc, char* argv[])
     QString serviceName = "ServoServiceDemo";
 
     // 1. Check for command line arguments mapping to modes
-    bool isConsoleMode = false;
-    bool isInstallMode = false;
+    bool isConsoleMode   = false;
+    bool isInstallMode   = false;
+    bool isUninstallMode = false;
 
-    if (argc > 1) {
-        QString arg(argv[1]);
+    for (int i = 1; i < argc; ++i) {
+        QString arg = QString::fromLocal8Bit(argv[i]);
         if (arg == "-c" || arg == "--console") {
             isConsoleMode = true;
-        } else if (arg == "-install" || arg == "--install" || arg == "-uninstall" || arg == "--uninstall") {
+        } else if (arg == "-install" || arg == "--install") {
             isInstallMode = true;
+            if (i + 1 < argc && !QString::fromLocal8Bit(argv[i + 1]).startsWith("-")) {
+                serviceName = QString::fromLocal8Bit(argv[++i]);
+            }
+        } else if (arg == "-uninstall" || arg == "--uninstall") {
+            isUninstallMode = true;
+            if (i + 1 < argc && !QString::fromLocal8Bit(argv[i + 1]).startsWith("-")) {
+                serviceName = QString::fromLocal8Bit(argv[++i]);
+            }
+        } else if (arg == "--service") {
+            if (i + 1 < argc) {
+                serviceName = QString::fromLocal8Bit(argv[++i]);
+            }
         }
     }
 
     // 2. Execute Console/Install Mode (Needs local QCoreApplication context)
     // - In console mode, we run the daemon synchronously.
     // - In install mode, we need QCoreApplication to resolve the absolute executable path using Qt functions.
-    if (isConsoleMode || isInstallMode) {
+    if (isConsoleMode || isInstallMode || isUninstallMode) {
         QCoreApplication a(argc, argv);
 
         WindowsService service(serviceName);
 
-        if (isInstallMode) {
-            QString arg(argv[1]);
+        if (isInstallMode || isUninstallMode) {
             // Service install/uninstall requires administrator privileges
             if (!isUserAdmin()) {
                 std::cout << "Error: Administrator privileges are required to install or remove the service.\n";
@@ -48,9 +60,9 @@ int main(int argc, char* argv[])
                 return 1;
             }
 
-            if (arg == "-install" || arg == "--install") {
+            if (isInstallMode) {
                 return service.install() ? 0 : 1;
-            } else if (arg == "-uninstall" || arg == "--uninstall") {
+            } else if (isUninstallMode) {
                 return service.uninstall() ? 0 : 1;
             }
         }
@@ -68,7 +80,8 @@ int main(int argc, char* argv[])
     // Attempt to connect to SCM by calling StartServiceCtrlDispatcher
     if (!service.run()) {
         std::cout << "This application is a Windows service and must be run via the Service Control Manager (SCM).\n";
-        std::cout << "To install the service, run: " << argv[0] << " -install\n";
+        std::cout << "To install the service, run: " << argv[0] << " --install [ServiceName]\n";
+        std::cout << "To uninstall the service, run: " << argv[0] << " --uninstall [ServiceName]\n";
         std::cout << "To run as a console application for debugging, run: " << argv[0] << " --console\n";
         return 1;
     }
