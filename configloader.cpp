@@ -1,5 +1,5 @@
 #include "configloader.h"
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 #include "servoconfig.h"
 
 #include <QCoreApplication>

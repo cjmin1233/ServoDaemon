@@ -13,12 +13,12 @@
         null,
         {
             "_comment": "Servo 1",
-            "profileVelocity": 1048576,
+            "profileVelocity": 10485760,
             "profileAccel": 10485760,
             "profileDecel": 10485760,
             "stopDecel": 10485760,
             "posCommandFilter": 0,
-            "posCommandAvgFilter": 0,
+            "posCommandAvgFilter": 500,
             "posLimitFunc": 3,
             "homeOffset": 26214,
             "homingMethod": 1,
@@ -46,7 +46,7 @@
         },
         {
             "_comment": "Servo 2",
-            "profileVelocity": 2097152,
+            "profileVelocity": 4194304,
             "profileAccel": 10485760,
             "profileDecel": 10485760,
             "stopDecel": 10485760,

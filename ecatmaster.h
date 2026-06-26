@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 #include "slave.h"
 
 extern "C" {

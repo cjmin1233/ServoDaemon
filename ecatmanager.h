@@ -4,7 +4,7 @@
 #include <QObject>
 // #include <QVector>
 
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 #include "ecatmaster.h"
 
 class EcatManager : public QObject {

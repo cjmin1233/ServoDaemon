@@ -1,7 +1,7 @@
 #ifndef SERVOL7NH_H
 #define SERVOL7NH_H
 
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 #include "servood.h"
 #include "slave.h"
 #include <mutex>

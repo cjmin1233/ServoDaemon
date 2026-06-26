@@ -7,7 +7,7 @@ extern "C" {
 #include "ethercat.h"
 }
 
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 
 class Slave : public QObject {
     Q_OBJECT

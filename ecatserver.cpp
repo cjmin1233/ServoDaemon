@@ -7,7 +7,7 @@
 #include <QTcpSocket>
 #include <QTimer>
 
-#include "../CommonConfig.h"
+#include "CommonConfig.h"
 #include "ecatmanager.h"
 
 EcatServer::EcatServer(QObject* parent)
